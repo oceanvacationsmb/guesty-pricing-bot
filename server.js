@@ -16,8 +16,9 @@ const TEST_MODE = true;
 const TEST_LISTINGS = [
   "69db0826f579c50013546169",
   "69db12bff579c50013548a0d",
-  "69db18d8085e450014e2bf65",
-  "69db12c790763a00130d40bc"
+  "ADD_ID_3",
+  "ADD_ID_4",
+  "ADD_ID_5"
 ];
 
 // ===== TOKEN CACHE =====
@@ -54,49 +55,51 @@ async function getAccessToken() {
 }
 
 // ===== STORAGE =====
-let selectedListings = [];
-let strategies = {};
 let snapshots = {};
 let isActive = false;
 
 // ===== ROOT =====
 app.get("/", (req, res) => {
-  res.send("Pricing bot running");
+  res.send(`
+    <h2>Pricing Bot</h2>
+    <a href="/on">TURN ON</a><br/><br/>
+    <a href="/off">TURN OFF</a><br/><br/>
+    <a href="/run">RUN</a><br/><br/>
+    <a href="/debug">DEBUG</a>
+  `);
 });
 
 // ===== DEBUG =====
 app.get("/debug", (req, res) => {
   res.json({
-    selectedListings,
-    strategies,
     snapshots,
     isActive,
-    TEST_MODE,
     TEST_LISTINGS
   });
 });
 
-// ===== TOGGLE =====
-app.post("/toggle", (req, res) => {
-  isActive = req.body.active;
-  res.json({ active: isActive });
+// ===== TURN ON =====
+app.get("/on", (req, res) => {
+  isActive = true;
+  res.send("ON");
+});
+
+// ===== TURN OFF =====
+app.get("/off", (req, res) => {
+  isActive = false;
+  res.send("OFF");
 });
 
 // ===== RUN =====
-app.post("/run", async (req, res) => {
+app.get("/run", async (req, res) => {
 
   if (!isActive) {
-    console.log("NOT ACTIVE");
-    return res.json({ message: "inactive" });
+    return res.send("NOT ACTIVE - CLICK TURN ON FIRST");
   }
-
-  const listingsToRun = TEST_MODE ? TEST_LISTINGS : selectedListings;
-
-  console.log("RUNNING FOR:", listingsToRun);
 
   const today = new Date();
 
-  for (const listingId of listingsToRun) {
+  for (const listingId of TEST_LISTINGS) {
 
     for (let i = 0; i < 30; i++) {
 
@@ -125,22 +128,10 @@ app.post("/run", async (req, res) => {
     }
   }
 
-  res.json({ success: true });
-});
-
-// ===== RESTORE =====
-app.post("/restore", (req, res) => {
-
-  for (const listingId in snapshots) {
-    for (const date in snapshots[listingId]) {
-      console.log("RESTORE TEST:", listingId, date, snapshots[listingId][date].original);
-    }
-  }
-
-  res.json({ restored: true });
+  res.send("RUN COMPLETE - CHECK LOGS");
 });
 
 // ===== START =====
 app.listen(PORT, () => {
-  console.log("Pricing bot running (TEST MODE)");
+  console.log("Pricing bot running (CLICK MODE)");
 });
