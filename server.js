@@ -56,20 +56,21 @@ async function getAccessToken() {
 async function getCalendarPrice(listingId, date, token) {
   try {
     const res = await axios.get(
-      `https://open-api.guesty.com/v1/listings/${listingId}/calendar`,
+      "https://open-api.guesty.com/v1/calendar",
       {
         headers: { Authorization: `Bearer ${token}` },
         params: {
+          listingId: listingId,
           startDate: date,
           endDate: date
         }
       }
     );
 
-    return res.data[0]?.price || 0;
+    return res.data?.results?.[0]?.price || 0;
 
   } catch (e) {
-    console.log("PRICE ERROR", listingId, date);
+    console.log("PRICE ERROR", listingId, date, e.response?.data || "");
     return 0;
   }
 }
