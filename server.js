@@ -92,13 +92,16 @@ async function getMultiCalendar(token, startDate, endDate) {
         },
         params: {
           listingIds: TEST_LISTINGS.join(","),
-          startDate,
-          endDate
+          from: startDate,
+          to: endDate
         }
       }
     );
 
+    console.log("CALENDAR RAW:", JSON.stringify(res.data, null, 2));
+
     return res.data;
+
   } catch (e) {
     console.log("MULTI CALENDAR ERROR", e.response?.data || e.message);
     throw e;
