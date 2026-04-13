@@ -1,0 +1,66 @@
+<!doctype html>
+<html>
+<body>
+
+<h3>Pricing Bot</h3>
+
+<button onclick="loadListings()">Load Listings</button>
+<div id="listings"></div>
+
+<hr>
+
+<button onclick="toggle(true)">ON</button>
+<button onclick="toggle(false)">OFF</button>
+
+<hr>
+
+<button onclick="run()">Run</button>
+<button onclick="restore()">Restore</button>
+
+<script>
+const API = "https://YOUR-RENDER-URL.onrender.com";
+
+async function loadListings() {
+  const res = await fetch(API + "/listings");
+  const data = await res.json();
+
+  let html = "";
+  data.results.forEach(l => {
+    html += `<div>
+      <input type="checkbox" value="${l._id}" onchange="select(this)">
+      ${l.title}
+    </div>`;
+  });
+
+  document.getElementById("listings").innerHTML = html;
+}
+
+async function select(el) {
+  const selected = [...document.querySelectorAll("input:checked")].map(i => i.value);
+
+  await fetch(API + "/listings/select", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ listings: selected })
+  });
+}
+
+async function toggle(val) {
+  await fetch(API + "/toggle", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ active: val })
+  });
+}
+
+async function run() {
+  await fetch(API + "/run", { method: "POST" });
+}
+
+async function restore() {
+  await fetch(API + "/restore", { method: "POST" });
+}
+</script>
+
+</body>
+</html>
