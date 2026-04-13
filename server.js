@@ -11,7 +11,6 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 10000;
 
-// ===== TEST LISTINGS (ONLY THESE WILL RUN) =====
 const TEST_LISTINGS = [
   "69db18d8085e450014e2bf65",
   "69db12c790763a00130d40bc",
@@ -19,9 +18,9 @@ const TEST_LISTINGS = [
   "69db0826f579c50013546169"
 ];
 
-// ===== TOKEN CACHE =====
 let cachedToken = null;
 let tokenExpiresAt = null;
+let isActive = false;
 
 async function getAccessToken() {
   if (cachedToken && Date.now() < tokenExpiresAt) return cachedToken;
@@ -48,127 +47,256 @@ async function getAccessToken() {
 
   cachedToken = res.data.access_token;
   tokenExpiresAt = Date.now() + (res.data.expires_in - 60) * 1000;
-
   return cachedToken;
 }
 
-// ===== GET REAL CALENDAR PRICE =====
-async function getCalendarPrice(listingId, date, token) {
+async function getListingsInfo(token) {
+  const out = [];
+
+  for (const id of TEST_LISTINGS) {
+    try {
+      const res = await axios.get(
+        `https://open-api.guesty.com/v1/listings/${id}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json"
+          }
+        }
+      );
+
+      out.push({
+        id,
+        title: res.data?.title || id
+      });
+    } catch (e) {
+      out.push({
+        id,
+        title: id
+      });
+      console.log("LISTING INFO ERROR", id, e.response?.data || e.message);
+    }
+  }
+
+  return out;
+}
+
+async function getMultiCalendar(token, startDate, endDate) {
   try {
     const res = await axios.get(
-      "https://open-api.guesty.com/v1/calendar",
+      "https://open-api.guesty.com/v1/availability-pricing/api/calendar/listings",
       {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json"
+        },
         params: {
-          listingId: listingId,
-          startDate: date,
-          endDate: date
+          listingIds: TEST_LISTINGS.join(","),
+          startDate,
+          endDate
         }
       }
     );
 
-    return res.data?.results?.[0]?.price || 0;
-
+    return res.data;
   } catch (e) {
-    console.log("PRICE ERROR", listingId, date, e.response?.data || "");
-    return 0;
+    console.log("MULTI CALENDAR ERROR", e.response?.data || e.message);
+    throw e;
   }
 }
 
-// ===== STORAGE =====
-let snapshots = {};
-let isActive = false;
+function formatDate(date) {
+  return date.toISOString().split("T")[0];
+}
 
-// ===== UI PAGE =====
+function addDays(date, days) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+function buildDateRange(days = 14) {
+  const start = new Date();
+  const end = addDays(start, days - 1);
+  return {
+    startDate: formatDate(start),
+    endDate: formatDate(end)
+  };
+}
+
+function collectDayMap(rawData) {
+  const map = {};
+
+  const listings = Array.isArray(rawData)
+    ? rawData
+    : Array.isArray(rawData?.results)
+      ? rawData.results
+      : Array.isArray(rawData?.data)
+        ? rawData.data
+        : [];
+
+  for (const item of listings) {
+    const listingId =
+      item.listingId ||
+      item._id ||
+      item.id ||
+      item.listing?._id ||
+      item.listing?.id;
+
+    const days =
+      item.calendar ||
+      item.days ||
+      item.results ||
+      item.data ||
+      [];
+
+    map[listingId] = {};
+
+    for (const day of days) {
+      const date =
+        day.date ||
+        day.day ||
+        day._id;
+
+      if (!date) continue;
+
+      map[listingId][date] = {
+        price:
+          day.price ??
+          day.rates?.baseRate ??
+          "",
+        minStay:
+          day.minNights ??
+          day.minStay ??
+          "",
+        status:
+          day.status ?? ""
+      };
+    }
+  }
+
+  return map;
+}
+
 app.get("/", (req, res) => {
   res.send(`
-    <h2>Pricing Bot</h2>
+    <h2>Guesty Pricing Bot</h2>
     <a href="/on">TURN ON</a><br/><br/>
     <a href="/off">TURN OFF</a><br/><br/>
-    <a href="/run">RUN</a><br/><br/>
-    <a href="/debug">DEBUG</a>
+    <a href="/debug">DEBUG</a><br/><br/>
+    <a href="/calendar">VIEW MULTI CALENDAR</a>
   `);
 });
 
-// ===== DEBUG =====
-app.get("/debug", (req, res) => {
-  res.json({
-    isActive,
-    TEST_LISTINGS,
-    snapshots
-  });
-});
-
-// ===== TURN ON =====
 app.get("/on", (req, res) => {
   isActive = true;
   res.send("ON");
 });
 
-// ===== TURN OFF =====
 app.get("/off", (req, res) => {
   isActive = false;
   res.send("OFF");
 });
 
-// ===== RUN =====
-app.get("/run", async (req, res) => {
-
-  if (!isActive) {
-    return res.send("NOT ACTIVE - CLICK TURN ON FIRST");
-  }
-
-  const token = await getAccessToken();
-  const today = new Date();
-
-  for (const listingId of TEST_LISTINGS) {
-
-    for (let i = 0; i < 30; i++) {
-
-      const d = new Date();
-      d.setDate(today.getDate() + i);
-      const dateStr = d.toISOString().split("T")[0];
-
-      // ===== GET REAL PRICE =====
-      const basePrice = await getCalendarPrice(listingId, dateStr, token);
-
-      if (!basePrice) continue;
-
-      // ===== SAVE ORIGINAL (ONCE) =====
-      if (!snapshots[listingId]) snapshots[listingId] = {};
-
-      if (!snapshots[listingId][dateStr]) {
-        snapshots[listingId][dateStr] = {
-          original: basePrice
-        };
-      }
-
-      let price = basePrice;
-
-      // ===== STRATEGY =====
-      if (i <= 7) price *= 0.8;
-      else if (i <= 14) price *= 0.85;
-      else if (i <= 21) price *= 0.9;
-      else price *= 0.95;
-
-      price = Math.round(price);
-
-      console.log(
-        "TEST UPDATE:",
-        listingId,
-        dateStr,
-        "ORIGINAL:",
-        basePrice,
-        "NEW:",
-        price
-      );
-    }
-  }
-
-  res.send("RUN COMPLETE - CHECK LOGS");
+app.get("/debug", (req, res) => {
+  res.json({
+    isActive,
+    TEST_LISTINGS
+  });
 });
 
-// ===== START =====
+app.get("/calendar", async (req, res) => {
+  try {
+    const token = await getAccessToken();
+    const { startDate, endDate } = buildDateRange(14);
+
+    const [listingInfo, rawCalendar] = await Promise.all([
+      getListingsInfo(token),
+      getMultiCalendar(token, startDate, endDate)
+    ]);
+
+    const dayMap = collectDayMap(rawCalendar);
+
+    const dates = [];
+    let cursor = new Date(startDate);
+    const last = new Date(endDate);
+
+    while (cursor <= last) {
+      dates.push(formatDate(cursor));
+      cursor = addDays(cursor, 1);
+    }
+
+    const html = `
+      <!doctype html>
+      <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>Multi Calendar</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 20px; }
+          h2 { margin-bottom: 16px; }
+          .topbar { margin-bottom: 16px; }
+          .topbar a { margin-right: 14px; }
+          table { border-collapse: collapse; width: 100%; }
+          th, td { border: 1px solid #ddd; padding: 8px; text-align: center; vertical-align: top; }
+          th:first-child, td:first-child { text-align: left; position: sticky; left: 0; background: #fff; min-width: 220px; }
+          th { background: #f5f5f5; }
+          .price { font-weight: bold; }
+          .minstay { color: #666; font-size: 12px; margin-top: 4px; }
+          .status { color: #999; font-size: 12px; margin-top: 4px; }
+          .wrap { overflow-x: auto; }
+        </style>
+      </head>
+      <body>
+        <h2>Read Only Multi Calendar</h2>
+        <div class="topbar">
+          <a href="/">HOME</a>
+          <a href="/calendar">REFRESH</a>
+        </div>
+        <div>Dates: ${startDate} to ${endDate}</div>
+        <br/>
+        <div class="wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Listing</th>
+                ${dates.map(d => `<th>${d.slice(5)}</th>`).join("")}
+              </tr>
+            </thead>
+            <tbody>
+              ${listingInfo.map(listing => `
+                <tr>
+                  <td>
+                    <div><strong>${listing.title}</strong></div>
+                    <div>${listing.id}</div>
+                  </td>
+                  ${dates.map(date => {
+                    const cell = dayMap[listing.id]?.[date] || {};
+                    return `
+                      <td>
+                        <div class="price">${cell.price ? `$${cell.price}` : "-"}</div>
+                        <div class="minstay">${cell.minStay ? `min ${cell.minStay}` : ""}</div>
+                        <div class="status">${cell.status || ""}</div>
+                      </td>
+                    `;
+                  }).join("")}
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>
+      </body>
+      </html>
+    `;
+
+    res.send(html);
+  } catch (e) {
+    res.status(500).send(`
+      <pre>${String(e.response?.data ? JSON.stringify(e.response.data, null, 2) : e.message)}</pre>
+    `);
+  }
+});
+
 app.listen(PORT, () => {
-  console.log("Pricing bot running (REAL PRICE TEST MODE)");
+  console.log("Pricing bot running - read only multi calendar");
 });
