@@ -99,30 +99,48 @@ async function guestyGetWithRetry(url, config = {}, retries = 5) {
   }
 }
 
+async function sleep(ms) {
+  return new Promise(r => setTimeout(r, ms));
+}
+
 async function getMultiCalendar(token, startDate, endDate) {
-  try {
-    const res = await guestyGetWithRetry(
-      "https://open-api.guesty.com/v1/availability-pricing/api/calendar/listings",
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/json"
-        },
-        params: {
-          listingIds: TEST_LISTINGS.join(","),
-          from: startDate,
-          to: endDate
+  const results = [];
+
+  for (const listingId of TEST_LISTINGS) {
+
+    console.log("FETCHING:", listingId);
+
+    try {
+      const res = await axios.get(
+        `https://open-api.guesty.com/v1/availability-pricing/api/calendar/listings/${listingId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json"
+          },
+          params: {
+            from: startDate,
+            to: endDate
+          }
         }
-      }
-    );
+      );
 
-    console.log("CALENDAR RAW:", JSON.stringify(res.data, null, 2));
-    return res.data;
+      results.push({
+        listingId,
+        calendar: res.data?.calendar || res.data?.results || res.data
+      });
 
-  } catch (e) {
-    console.log("ERROR", e.response?.data || e.message);
-    throw e;
+    } catch (e) {
+      console.log("ERROR LISTING:", listingId, e.response?.data || e.message);
+    }
+
+    await sleep(1200);
   }
+
+  console.log("CALENDAR RAW:", JSON.stringify(results, null, 2));
+
+  return results;
+}
 }
 
 function formatDate(date) {
