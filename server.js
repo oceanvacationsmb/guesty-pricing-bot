@@ -99,9 +99,7 @@ async function guestyGetWithRetry(url, config = {}, retries = 5) {
   }
 }
 
-async function sleep(ms) {
-  return new Promise(r => setTimeout(r, ms));
-}
+
 
 async function getMultiCalendar(token, startDate, endDate) {
   const results = [];
