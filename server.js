@@ -125,6 +125,8 @@ function buildDateRange(days = 14) {
 }
 
 function collectDayMap(rawData) {
+  console.log("RAW CALENDAR RESPONSE:", JSON.stringify(rawData, null, 2));
+
   const map = {};
 
   const listings = Array.isArray(rawData)
@@ -148,6 +150,7 @@ function collectDayMap(rawData) {
       item.days ||
       item.results ||
       item.data ||
+      item.dates ||
       [];
 
     map[listingId] = {};
@@ -160,21 +163,29 @@ function collectDayMap(rawData) {
 
       if (!date) continue;
 
+      const price =
+        day.price ??
+        day.basePrice ??
+        day.adjustedPrice ??
+        day.rate ??
+        day.nightlyRate ??
+        day.rates?.baseRate ??
+        day.rates?.adjustedPrice ??
+        day.rates?.nightlyRate ??
+        day.calendarPrice ??
+        "";
+
       map[listingId][date] = {
-        price:
-  day.price ??
-  day.basePrice ??
-  day.adjustedPrice ??
-  day.rates?.baseRate ??
-  day.rates?.adjustedPrice ??
-  day.rates?.nightlyRate ??
-  "",
+        price,
         minStay:
           day.minNights ??
           day.minStay ??
+          day.minimumNights ??
           "",
         status:
-          day.status ?? ""
+          day.status ??
+          day.available ??
+          ""
       };
     }
   }
