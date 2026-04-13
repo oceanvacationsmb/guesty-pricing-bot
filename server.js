@@ -14,8 +14,8 @@ const PORT = process.env.PORT || 10000;
 // ===== TEST MODE =====
 const TEST_MODE = true;
 const TEST_LISTINGS = [
-  "PUT_REAL_LISTING_ID_1",
-  "PUT_REAL_LISTING_ID_2"
+  "69db0826f579c50013546169",
+  "69db12bff579c50013548a0d"
 ];
 
 // ===== TOKEN CACHE =====
