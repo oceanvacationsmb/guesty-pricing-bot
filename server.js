@@ -162,9 +162,13 @@ function collectDayMap(rawData) {
 
       map[listingId][date] = {
         price:
-          day.price ??
-          day.rates?.baseRate ??
-          "",
+  day.price ??
+  day.basePrice ??
+  day.adjustedPrice ??
+  day.rates?.baseRate ??
+  day.rates?.adjustedPrice ??
+  day.rates?.nightlyRate ??
+  "",
         minStay:
           day.minNights ??
           day.minStay ??
