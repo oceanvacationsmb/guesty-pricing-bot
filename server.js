@@ -14,11 +14,10 @@ const PORT = process.env.PORT || 10000;
 // ===== TEST MODE =====
 const TEST_MODE = true;
 const TEST_LISTINGS = [
-  "69db0826f579c50013546169",
+  "69db18d8085e450014e2bf65",
+  "69db12c790763a00130d40bc",
   "69db12bff579c50013548a0d",
-  "ADD_ID_3",
-  "ADD_ID_4",
-  "ADD_ID_5"
+  "69db0826f579c50013546169"
 ];
 
 // ===== TOKEN CACHE =====
