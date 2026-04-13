@@ -134,7 +134,7 @@ async function getMultiCalendar(token, startDate, endDate) {
       console.log("ERROR LISTING:", listingId, e.response?.data || e.message);
     }
 
-    await sleep(1200);
+    await sleep(3000);
   }
 
   console.log("CALENDAR RAW:", JSON.stringify(results, null, 2));
@@ -261,7 +261,7 @@ app.get("/debug", (req, res) => {
 app.get("/calendar", async (req, res) => {
   try {
     const token = await getAccessToken();
-    const { startDate, endDate } = buildDateRange(7);
+    const { startDate, endDate } = buildDateRange(3);
 
     const [listingInfo, rawCalendar] = await Promise.all([
       getListingsInfo(token),
