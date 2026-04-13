@@ -11,6 +11,13 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 10000;
 
+// ================= TEST MODE =================
+const TEST_MODE = true;
+const TEST_LISTINGS = [
+  "PUT_LISTING_ID_1",
+  "PUT_LISTING_ID_2"
+];
+
 // ================= TOKEN CACHE =================
 let cachedToken = null;
 let tokenExpiresAt = null;
@@ -50,7 +57,7 @@ let strategies = {};
 let snapshots = {};
 let isActive = false;
 
-// ================= GET ALL LISTINGS =================
+// ================= GET LISTINGS =================
 app.get("/listings", async (req, res) => {
   const token = await getAccessToken();
 
@@ -65,25 +72,13 @@ app.get("/listings", async (req, res) => {
   res.json(response.data);
 });
 
-// ================= SELECT LISTINGS =================
+// ================= SELECT =================
 app.post("/listings/select", (req, res) => {
   selectedListings = req.body.listings;
   res.json({ success: true });
 });
 
-// ================= GET SELECTED =================
-app.get("/listings/selected", (req, res) => {
-  res.json(selectedListings);
-});
-
-// ================= REMOVE =================
-app.post("/listings/remove", (req, res) => {
-  const { id } = req.body;
-  selectedListings = selectedListings.filter(l => l !== id);
-  res.json({ success: true });
-});
-
-// ================= CREATE STRATEGY =================
+// ================= STRATEGY =================
 app.post("/strategy", (req, res) => {
   const { listingId, config } = req.body;
   strategies[listingId] = config;
@@ -96,28 +91,28 @@ app.post("/toggle", (req, res) => {
   res.json({ active: isActive });
 });
 
-// ================= RUN PRICING =================
+// ================= RUN =================
 app.post("/run", async (req, res) => {
   if (!isActive) return res.json({ message: "inactive" });
 
-  const token = await getAccessToken();
+  const listingsToRun = TEST_MODE ? TEST_LISTINGS : selectedListings;
 
-  for (const listingId of selectedListings) {
+  for (const listingId of listingsToRun) {
 
-    const strategy = strategies[listingId];
-    if (!strategy) continue;
+    const strategy = strategies[listingId] || { min: 50, max: 500 };
 
     const today = new Date();
 
     for (let i = 0; i < 30; i++) {
+
       const d = new Date();
       d.setDate(today.getDate() + i);
       const dateStr = d.toISOString().split("T")[0];
 
-      // FAKE base price for now (replace later with real fetch)
       const basePrice = 200;
 
       if (!snapshots[listingId]) snapshots[listingId] = {};
+
       if (!snapshots[listingId][dateStr]) {
         snapshots[listingId][dateStr] = {
           original: basePrice
@@ -134,49 +129,41 @@ app.post("/run", async (req, res) => {
       if (price < strategy.min) price = strategy.min;
       if (price > strategy.max) price = strategy.max;
 
-      await axios.put(
-        `https://open-api.guesty.com/v1/listings/${listingId}/calendar`,
-        {
-          startDate: dateStr,
-          endDate: dateStr,
-          price: Math.round(price)
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      );
+      console.log("TEST UPDATE:", listingId, dateStr, Math.round(price));
     }
   }
 
-  res.json({ success: true });
+  res.json({ success: true, testMode: true });
 });
 
 // ================= RESTORE =================
 app.post("/restore", async (req, res) => {
-  const token = await getAccessToken();
 
   for (const listingId in snapshots) {
     for (const date in snapshots[listingId]) {
+
       const original = snapshots[listingId][date].original;
 
-      await axios.put(
-        `https://open-api.guesty.com/v1/listings/${listingId}/calendar`,
-        {
-          startDate: date,
-          endDate: date,
-          price: original
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      );
+      console.log("RESTORE TEST:", listingId, date, original);
     }
   }
 
-  res.json({ restored: true });
+  res.json({ restored: true, testMode: true });
+});
+
+// ================= DEBUG =================
+app.get("/debug", (req, res) => {
+  res.json({
+    selectedListings,
+    strategies,
+    snapshots,
+    isActive,
+    TEST_MODE,
+    TEST_LISTINGS
+  });
 });
 
 // ================= START =================
 app.listen(PORT, () => {
-  console.log("Pricing bot running");
+  console.log("Pricing bot running (TEST MODE)");
 });
