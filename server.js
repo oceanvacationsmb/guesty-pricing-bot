@@ -11,8 +11,7 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 10000;
 
-// ===== TEST MODE =====
-const TEST_MODE = true;
+// ===== TEST LISTINGS (ONLY THESE WILL RUN) =====
 const TEST_LISTINGS = [
   "69db18d8085e450014e2bf65",
   "69db12c790763a00130d40bc",
@@ -53,11 +52,33 @@ async function getAccessToken() {
   return cachedToken;
 }
 
+// ===== GET REAL CALENDAR PRICE =====
+async function getCalendarPrice(listingId, date, token) {
+  try {
+    const res = await axios.get(
+      `https://open-api.guesty.com/v1/listings/${listingId}/calendar`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        params: {
+          startDate: date,
+          endDate: date
+        }
+      }
+    );
+
+    return res.data[0]?.price || 0;
+
+  } catch (e) {
+    console.log("PRICE ERROR", listingId, date);
+    return 0;
+  }
+}
+
 // ===== STORAGE =====
 let snapshots = {};
 let isActive = false;
 
-// ===== ROOT =====
+// ===== UI PAGE =====
 app.get("/", (req, res) => {
   res.send(`
     <h2>Pricing Bot</h2>
@@ -71,9 +92,9 @@ app.get("/", (req, res) => {
 // ===== DEBUG =====
 app.get("/debug", (req, res) => {
   res.json({
-    snapshots,
     isActive,
-    TEST_LISTINGS
+    TEST_LISTINGS,
+    snapshots
   });
 });
 
@@ -96,6 +117,7 @@ app.get("/run", async (req, res) => {
     return res.send("NOT ACTIVE - CLICK TURN ON FIRST");
   }
 
+  const token = await getAccessToken();
   const today = new Date();
 
   for (const listingId of TEST_LISTINGS) {
@@ -106,8 +128,12 @@ app.get("/run", async (req, res) => {
       d.setDate(today.getDate() + i);
       const dateStr = d.toISOString().split("T")[0];
 
-      const basePrice = 200;
+      // ===== GET REAL PRICE =====
+      const basePrice = await getCalendarPrice(listingId, dateStr, token);
 
+      if (!basePrice) continue;
+
+      // ===== SAVE ORIGINAL (ONCE) =====
       if (!snapshots[listingId]) snapshots[listingId] = {};
 
       if (!snapshots[listingId][dateStr]) {
@@ -118,12 +144,23 @@ app.get("/run", async (req, res) => {
 
       let price = basePrice;
 
+      // ===== STRATEGY =====
       if (i <= 7) price *= 0.8;
       else if (i <= 14) price *= 0.85;
       else if (i <= 21) price *= 0.9;
       else price *= 0.95;
 
-      console.log("TEST UPDATE:", listingId, dateStr, Math.round(price));
+      price = Math.round(price);
+
+      console.log(
+        "TEST UPDATE:",
+        listingId,
+        dateStr,
+        "ORIGINAL:",
+        basePrice,
+        "NEW:",
+        price
+      );
     }
   }
 
@@ -132,5 +169,5 @@ app.get("/run", async (req, res) => {
 
 // ===== START =====
 app.listen(PORT, () => {
-  console.log("Pricing bot running (CLICK MODE)");
+  console.log("Pricing bot running (REAL PRICE TEST MODE)");
 });
