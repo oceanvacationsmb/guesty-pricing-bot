@@ -11,14 +11,14 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 10000;
 
-// ================= TEST MODE =================
+// ===== TEST MODE =====
 const TEST_MODE = true;
 const TEST_LISTINGS = [
-  "PUT_LISTING_ID_1",
-  "PUT_LISTING_ID_2"
+  "PUT_REAL_LISTING_ID_1",
+  "PUT_REAL_LISTING_ID_2"
 ];
 
-// ================= TOKEN CACHE =================
+// ===== TOKEN CACHE =====
 let cachedToken = null;
 let tokenExpiresAt = null;
 
@@ -51,57 +51,50 @@ async function getAccessToken() {
   return cachedToken;
 }
 
-// ================= STORAGE =================
+// ===== STORAGE =====
 let selectedListings = [];
 let strategies = {};
 let snapshots = {};
 let isActive = false;
 
-// ================= GET LISTINGS =================
-app.get("/listings", async (req, res) => {
-  const token = await getAccessToken();
-
-  const response = await axios.get(
-    "https://open-api.guesty.com/v1/listings",
-    {
-      headers: { Authorization: `Bearer ${token}` },
-      params: { limit: 200 }
-    }
-  );
-
-  res.json(response.data);
+// ===== ROOT =====
+app.get("/", (req, res) => {
+  res.send("Pricing bot running");
 });
 
-// ================= SELECT =================
-app.post("/listings/select", (req, res) => {
-  selectedListings = req.body.listings;
-  res.json({ success: true });
+// ===== DEBUG =====
+app.get("/debug", (req, res) => {
+  res.json({
+    selectedListings,
+    strategies,
+    snapshots,
+    isActive,
+    TEST_MODE,
+    TEST_LISTINGS
+  });
 });
 
-// ================= STRATEGY =================
-app.post("/strategy", (req, res) => {
-  const { listingId, config } = req.body;
-  strategies[listingId] = config;
-  res.json({ success: true });
-});
-
-// ================= TOGGLE =================
+// ===== TOGGLE =====
 app.post("/toggle", (req, res) => {
   isActive = req.body.active;
   res.json({ active: isActive });
 });
 
-// ================= RUN =================
+// ===== RUN =====
 app.post("/run", async (req, res) => {
-  if (!isActive) return res.json({ message: "inactive" });
+
+  if (!isActive) {
+    console.log("NOT ACTIVE");
+    return res.json({ message: "inactive" });
+  }
 
   const listingsToRun = TEST_MODE ? TEST_LISTINGS : selectedListings;
 
+  console.log("RUNNING FOR:", listingsToRun);
+
+  const today = new Date();
+
   for (const listingId of listingsToRun) {
-
-    const strategy = strategies[listingId] || { min: 50, max: 500 };
-
-    const today = new Date();
 
     for (let i = 0; i < 30; i++) {
 
@@ -126,44 +119,26 @@ app.post("/run", async (req, res) => {
       else if (i <= 21) price *= 0.9;
       else price *= 0.95;
 
-      if (price < strategy.min) price = strategy.min;
-      if (price > strategy.max) price = strategy.max;
-
       console.log("TEST UPDATE:", listingId, dateStr, Math.round(price));
     }
   }
 
-  res.json({ success: true, testMode: true });
+  res.json({ success: true });
 });
 
-// ================= RESTORE =================
-app.post("/restore", async (req, res) => {
+// ===== RESTORE =====
+app.post("/restore", (req, res) => {
 
   for (const listingId in snapshots) {
     for (const date in snapshots[listingId]) {
-
-      const original = snapshots[listingId][date].original;
-
-      console.log("RESTORE TEST:", listingId, date, original);
+      console.log("RESTORE TEST:", listingId, date, snapshots[listingId][date].original);
     }
   }
 
-  res.json({ restored: true, testMode: true });
+  res.json({ restored: true });
 });
 
-// ================= DEBUG =================
-app.get("/debug", (req, res) => {
-  res.json({
-    selectedListings,
-    strategies,
-    snapshots,
-    isActive,
-    TEST_MODE,
-    TEST_LISTINGS
-  });
-});
-
-// ================= START =================
+// ===== START =====
 app.listen(PORT, () => {
   console.log("Pricing bot running (TEST MODE)");
 });
