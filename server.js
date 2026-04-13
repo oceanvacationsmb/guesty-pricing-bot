@@ -81,9 +81,27 @@ async function getListingsInfo(token) {
   return out;
 }
 
+async function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function guestyGetWithRetry(url, config = {}, retries = 5) {
+  for (let i = 0; i <= retries; i++) {
+    try {
+      return await axios.get(url, config);
+    } catch (e) {
+      if (i === retries) throw e;
+
+      const wait = 2000 * (i + 1);
+      console.log("RATE LIMITED - WAIT", wait);
+      await sleep(wait);
+    }
+  }
+}
+
 async function getMultiCalendar(token, startDate, endDate) {
   try {
-    const res = await axios.get(
+    const res = await guestyGetWithRetry(
       "https://open-api.guesty.com/v1/availability-pricing/api/calendar/listings",
       {
         headers: {
@@ -99,11 +117,10 @@ async function getMultiCalendar(token, startDate, endDate) {
     );
 
     console.log("CALENDAR RAW:", JSON.stringify(res.data, null, 2));
-
     return res.data;
 
   } catch (e) {
-    console.log("MULTI CALENDAR ERROR", e.response?.data || e.message);
+    console.log("ERROR", e.response?.data || e.message);
     throw e;
   }
 }
@@ -226,7 +243,7 @@ app.get("/debug", (req, res) => {
 app.get("/calendar", async (req, res) => {
   try {
     const token = await getAccessToken();
-    const { startDate, endDate } = buildDateRange(14);
+    const { startDate, endDate } = buildDateRange(7);
 
     const [listingInfo, rawCalendar] = await Promise.all([
       getListingsInfo(token),
