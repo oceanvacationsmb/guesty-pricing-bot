@@ -5,11 +5,19 @@ app.use(cors());
 app.use(express.json());
 
 const PORT = process.env.PORT || 10000;
-let MANAGED_LISTINGS = [
+import fs from "fs";
+const LIST_FILE = "./listings.json";
+let MANAGED_LISTINGS = [];
+if(fs.existsSync(LIST_FILE)) {
+  MANAGED_LISTINGS = JSON.parse(fs.readFileSync(LIST_FILE,"utf8"));
+} else {
+  MANAGED_LISTINGS = [
     "69db18d8085e450014e2bf65",
     "69db12c790763a00130d40bc",
     "69db12bff579c50013548a0d"
-];
+  ];
+  fs.writeFileSync(LIST_FILE, JSON.stringify(MANAGED_LISTINGS));
+}
 
 app.get("/api/listings", (req, res) =>
     res.json({ listings: MANAGED_LISTINGS })
