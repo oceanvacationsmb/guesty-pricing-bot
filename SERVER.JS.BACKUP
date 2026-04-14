@@ -20,6 +20,12 @@ let MANAGED_LISTINGS = [
 
 // Store strategies per listing for future enhancement
 let LISTING_STRATEGIES = {};
+LISTING_STRATEGIES = {
+  "69db18d8085e450014e2bf65": { enabled: true, pct: -20, min: 100, max: 10000 },
+  "69db12c790763a00130d40bc": { enabled: true, pct: -20, min: 100, max: 10000 },
+  "69db12bff579c50013548a0d": { enabled: true, pct: -20, min: 100, max: 10000 },
+  "69db0826f579c50013546169": { enabled: true, pct: -20, min: 100, max: 10000 }
+};
 
 // ========== LISTING MANAGEMENT ENDPOINTS ==========
 
@@ -172,6 +178,17 @@ function getDayPrice(day) {
   );
 }
 
+function applyStrategy(price, strategy) {
+  if (!strategy || !strategy.enabled) return price;
+
+  let newPrice = price + (price * (strategy.pct / 100));
+
+  if (strategy.min) newPrice = Math.max(newPrice, strategy.min);
+  if (strategy.max) newPrice = Math.min(newPrice, strategy.max);
+
+  return Math.round(newPrice);
+}
+
 function getDayMinNights(day) {
   return (
     day.minNights ??
@@ -230,10 +247,14 @@ app.get("/calendar", async (req, res) => {
 
       if (!ratesMap[listingId]) ratesMap[listingId] = {};
 
-      ratesMap[listingId][date] = {
-        price: getDayPrice(day),
-        minNights: getDayMinNights(day)
-      };
+      const originalPrice = getDayPrice(day);
+const strategy = LISTING_STRATEGIES[listingId];
+
+ratesMap[listingId][date] = {
+  price: originalPrice,
+  newPrice: applyStrategy(originalPrice, strategy),
+  minNights: getDayMinNights(day)
+};
     }
 
     const html = `
@@ -276,7 +297,13 @@ app.get("/calendar", async (req, res) => {
                   const cell = (ratesMap[listing.id] && ratesMap[listing.id][date]) || {};
                   return `
                     <td>
-                      <div class="price">${cell.price !== undefined && cell.price !== null ? `$${cell.price}` : "-"}</div>
+                      <div class="price">
+  ${cell.price ? `$${cell.price}` : "-"}
+  <br/>
+  <span style="color:red;">
+    ${cell.newPrice ? `$${cell.newPrice}` : ""}
+  </span>
+</div>
                       <div class="minstay">${cell.minNights !== undefined && cell.minNights !== null ? `min ${cell.minNights}` : ""}</div>
                     </td>
                   `;
