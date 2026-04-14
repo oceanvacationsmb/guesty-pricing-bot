@@ -752,16 +752,21 @@ app.get("/api/listings", (req, res) => {
   res.json({ listings: MANAGED_LISTINGS });
 });
 
-MANAGED_LISTINGS.push(id);
-saveData();
-  const { id } = req.body;
-  if (!id || typeof id !== "string" || MANAGED_LISTINGS.includes(id)) {
+app.post("/api/listings", (req, res) => {
+  let { id } = req.body;
+  id = String(id || "").trim();
+
+  if (!id || MANAGED_LISTINGS.includes(id)) {
     return res.status(400).json({ error: "Invalid or duplicate listing ID" });
   }
+
   MANAGED_LISTINGS.push(id);
+
   if (!LISTING_STRATEGIES[id]) {
     LISTING_STRATEGIES[id] = createDefaultStrategy();
   }
+
+  saveData();
   res.json({ listings: MANAGED_LISTINGS });
 });
 
