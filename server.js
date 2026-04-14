@@ -63,22 +63,7 @@ const persistedData = loadData();
 
 let MANAGED_LISTINGS = persistedData.managedListings;
 
-let LISTING_STRATEGIES = {
-  "69db18d8085e450014e2bf65": createDlet LISTING_STRATEGIES = persistedData.listingStrategies || {};
-
-let cachedToken = null;
-let tokenExpiresAt = null;
-
-function createDefaultStrategy() {
-  return {
-    enabled: true,
-    min: 100, // floor price AFTER discounts
-    drop0to7: 0,   // %
-    drop8to14: 0,  // %
-    drop15to21: 0, // %
-    drop22to30: 0  // %
-  };
-}
+let LISTING_STRATEGIES = persistedData.listingStrategies || {};
 
 async function getAccessToken() {
   if (cachedToken && Date.now() < tokenExpiresAt) return cachedToken;
