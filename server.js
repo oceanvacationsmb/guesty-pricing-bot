@@ -66,6 +66,18 @@ let LISTING_STRATEGIES = persistedData.listingStrategies || {};
 let cachedToken = null;
 let tokenExpiresAt = 0;
 
+function createDefaultStrategy() {
+  return {
+    enabled: true,
+    min: 100,
+    drop0to7: 0,
+    drop8to13: 0,
+    drop14to21: 0,
+    drop22to30: 0,
+    gapNights: 2
+  };
+}
+
 async function getAccessToken() {
   if (cachedToken && Date.now() < tokenExpiresAt) return cachedToken;
 
