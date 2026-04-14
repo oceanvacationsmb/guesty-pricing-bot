@@ -301,12 +301,12 @@ function pageTemplate(title, activePage, content, extraScripts = "") {
       <title>${title}</title>
       <style>
         :root{
-          --bg:#0b1220;
-          --panel:#121a2b;
-          --panel-2:#172135;
-          --line:#26324d;
-          --text:#edf3ff;
-          --muted:#9fb0d1;
+  --bg:#f5f7fb;
+  --panel:#ffffff;
+  --panel-2:#f8fafc;
+  --line:#dbe3ef;
+  --text:#1f2937;
+  --muted:#6b7280;
           --accent:#5b8cff;
           --accent-2:#29c7ac;
           --danger:#ff6b6b;
@@ -317,20 +317,20 @@ function pageTemplate(title, activePage, content, extraScripts = "") {
         }
         * { box-sizing:border-box; }
         body {
-          margin:0;
-          font-family: Inter, Arial, sans-serif;
-          background:linear-gradient(180deg,#0b1220 0%, #0f1729 100%);
-          color:var(--text);
-        }
+  margin:0;
+  font-family: Inter, Arial, sans-serif;
+  background:#f5f7fb;
+  color:var(--text);
+}
         .app {
           display:grid;
           grid-template-columns: 260px 1fr;
           min-height:100vh;
         }
         .sidebar {
-          background:rgba(10,16,30,.88);
-          border-right:1px solid var(--line);
-          padding:24px 18px;
+  background:#ffffff;
+  border-right:1px solid var(--line);
+  padding:24px 18px;
           position:sticky;
           top:0;
           height:100vh;
@@ -569,13 +569,13 @@ function pageTemplate(title, activePage, content, extraScripts = "") {
           border-bottom:1px solid var(--line);
         }
         .calendar-table th:first-child, .calendar-table td:first-child {
-          text-align:left;
-          min-width:250px;
-          position:sticky;
-          left:0;
-          background:#111a2a;
-          z-index:2;
-        }
+  text-align:left;
+  min-width:250px;
+  position:sticky;
+  left:0;
+  background:#ffffff;
+  z-index:5;
+}
         .price-original {
           font-size:15px;
           font-weight:800;
@@ -646,7 +646,6 @@ function pageTemplate(title, activePage, content, extraScripts = "") {
             <div class="nav-section-title">Main</div>
             <a class="${activePage === "dashboard" ? "active" : ""}" href="/dashboard">Dashboard</a>
             <a class="${activePage === "calendar" ? "active" : ""}" href="/calendar">Calendar</a>
-            <a class="${activePage === "preview" ? "active" : ""}" href="/preview">Preview</a>
             <a class="${activePage === "settings" ? "active" : ""}" href="/settings">Settings</a>
             <a class="${activePage === "listings" ? "active" : ""}" href="/listings">Listings</a>
           </nav>
@@ -671,7 +670,7 @@ async function getListingsDataWithTitles(token) {
     let title = listingId;
     try {
       const info = await guestyGetListingInfo(listingId, token);
-      title = info.title || info.nickname || listingId;
+      title = info.nickname || info.title || "Property";
     } catch (e) {
       console.log("LISTING INFO ERROR:", listingId, e.response?.data || e.message);
     }
@@ -739,76 +738,17 @@ app.get("/api/strategy/:id", (req, res) => {
 
 app.post("/api/strategy/:id", (req, res) => {
   const id = req.params.id;
+
   if (!MANAGED_LISTINGS.includes(id)) {
-    return res.status(400).json({ error: "Listing is not in managed scope" });
+    return res.status(400).json({ error: "Listing not allowed" });
   }
 
   const strategy = normalizeStrategy(req.body);
   LISTING_STRATEGIES[id] = strategy;
+
+  console.log("SAVED STRATEGY:", id, strategy);
+
   res.json({ ok: true, strategy });
-});
-
-app.get("/", (req, res) => {
-  res.redirect("/dashboard");
-});
-
-app.get("/dashboard", async (req, res) => {
-  const content = `
-    <div class="topbar">
-      <div>
-        <h1 class="page-title">Dashboard</h1>
-        <div class="page-subtitle">Manage pricing preview, listings, and strategy rules with a cleaner workflow.</div>
-      </div>
-      <div class="chip-row">
-        <div class="chip">Managed Listings: ${MANAGED_LISTINGS.length}</div>
-        <div class="chip">Preview Mode Only</div>
-      </div>
-    </div>
-
-    <div class="banner">
-      Your current setup is connected to Guesty, reading listing names and nightly rates, and showing original versus strategy price in preview mode only.
-    </div>
-
-    <div class="stats">
-      <div class="stat">
-        <div class="stat-label">Listings</div>
-        <div class="stat-value">${MANAGED_LISTINGS.length}</div>
-      </div>
-      <div class="stat">
-        <div class="stat-label">Enabled Strategies</div>
-        <div class="stat-value">${Object.values(LISTING_STRATEGIES).filter(s => s?.enabled).length}</div>
-      </div>
-      <div class="stat">
-        <div class="stat-label">Season Rules</div>
-        <div class="stat-value">${Object.values(LISTING_STRATEGIES).reduce((n, s) => n + ((s?.seasonalRules || []).filter(r => r.startDate && r.endDate).length), 0)}</div>
-      </div>
-      <div class="stat">
-        <div class="stat-label">Event Rules</div>
-        <div class="stat-value">${Object.values(LISTING_STRATEGIES).reduce((n, s) => n + ((s?.eventRules || []).filter(r => r.startDate && r.endDate).length), 0)}</div>
-      </div>
-    </div>
-
-    <div class="grid grid-2" style="margin-top:20px;">
-      <div class="card">
-        <div class="card-title">Managed Listings</div>
-        <div class="card-subtitle">Current scope is locked to the listings you selected.</div>
-        ${MANAGED_LISTINGS.map(id => `<span class="listing-pill">${id}</span>`).join("")}
-      </div>
-
-      <div class="card">
-        <div class="card-title">Quick Actions</div>
-        <div class="card-subtitle">Use these pages to move fast.</div>
-        <div class="row">
-          <a class="btn btn-primary" href="/calendar">Open Calendar</a>
-          <a class="btn btn-secondary" href="/preview">Open Preview</a>
-          <a class="btn btn-secondary" href="/settings">Edit Settings</a>
-          <a class="btn btn-secondary" href="/listings">Manage Listings</a>
-        </div>
-      </div>
-    </div>
-  `;
-
-  res.send(pageTemplate("Dashboard", "dashboard", content));
 });
 
 app.get("/listings", async (req, res) => {
@@ -1179,7 +1119,7 @@ app.get("/calendar", async (req, res) => {
               <tr>
                 <td>
                   <div><strong>${listing.title}</strong></div>
-                  <div class="small-text">${listing.id}</div>
+                  
                 </td>
                 ${dates.map(date => {
                   const cell = (ratesMap[listing.id] && ratesMap[listing.id][date]) || {};
@@ -1205,29 +1145,7 @@ app.get("/calendar", async (req, res) => {
   }
 });
 
-app.get("/preview", async (req, res) => {
-  try {
-    const { startDate, endDate } = buildDateRange(14);
-    const token = await getAccessToken();
-    const listingsData = await getListingsDataWithTitles(token);
-    const ratesMap = await getRatesMap(token, startDate, endDate);
 
-    const rows = [];
-    for (const listing of listingsData) {
-      for (let cursor = new Date(startDate); cursor <= new Date(endDate); cursor = addDays(cursor, 1)) {
-        const date = formatDate(cursor);
-        const cell = (ratesMap[listing.id] && ratesMap[listing.id][date]) || {};
-        rows.push({
-          title: listing.title,
-          id: listing.id,
-          date,
-          original: cell.price,
-          preview: cell.newPrice,
-          rule: cell.ruleLabel || "",
-          guestyMin: cell.minNights,
-          strategyMin: cell.strategyMinNights,
-          strategyMax: cell.strategyMaxNights
-        });
       }
     }
 
