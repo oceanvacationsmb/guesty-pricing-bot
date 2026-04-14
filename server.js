@@ -18,7 +18,6 @@ const TEST_LISTINGS = [
 let cachedToken = null;
 let tokenExpiresAt = null;
 
-// Always get a fresh token or check expiration
 async function getAccessToken() {
   if (cachedToken && Date.now() < tokenExpiresAt) return cachedToken;
 
@@ -46,49 +45,148 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// Guesty API GET with retry and rate limit handling
-async function guestyGetWithRetry(url, config = {}, retries = 5) {
-  for (let i = 0; i <= retries; i++) {
-    try {
-      const token = await getAccessToken();
-      config.headers = { ...config.headers, Authorization: `Bearer ${token}` };
-      return await axios.get(url, config);
-    } catch (e) {
-      if (i === retries) throw e;
-
-      let wait = 10000 * (i + 1); // 10s, 20s, 30s, ...
-      if (e.response && e.response.status === 429) {
-        const retryAfter = e.response.headers['retry-after'];
-        wait = retryAfter ? parseInt(retryAfter, 10) * 1000 : 60000; // 60s default
-        console.log(`429 Too Many Requests. Waiting ${wait / 1000}s`);
-      } else {
-        console.log(`Error: ${e.message}. Waiting ${wait / 1000}s`);
-      }
-      await sleep(wait);
-    }
-  }
+async function guestyGetListingInfo(listingId, token) {
+  const url = `https://open-api.guesty.com/v1/listings/${listingId}`;
+  const res = await axios.get(url, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  return res.data;
 }
 
-// Example endpoint: get info for all test listings, one at a time
-app.get("/listings", async (req, res) => {
-  const results = [];
-  for (const id of TEST_LISTINGS) {
-    try {
-      const response = await guestyGetWithRetry(
-        `https://open-api.guesty.com/v1/listings/${id}`,
-        { headers: { Accept: "application/json" } }
-      );
-      results.push({ id, data: response.data });
-    } catch (e) {
-      results.push({ id, error: e.message });
-    }
-    await sleep(10000); // 10 seconds between requests
+async function guestyGetCalendar(listingId, startDate, endDate, token) {
+  const url = `https://open-api.guesty.com/v1/availability-pricing/api/calendar/listings/${listingId}`;
+  const res = await axios.get(url, {
+    headers: { Authorization: `Bearer ${token}` },
+    params: { from: startDate, to: endDate }
+  });
+
+  const calendar = res.data.calendar || res.data.results || res.data;
+  const dayMap = {};
+  for (const day of calendar) {
+    dayMap[day.date] = {
+      price: day.price,
+      minNights: day.minNights || day.minStay || day.minimumNights
+    };
   }
-  res.json(results);
-});
+  return dayMap;
+}
+
+function formatDate(date) {
+  return date.toISOString().split("T")[0];
+}
+
+function addDays(date, days) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+function buildDateRange(days = 3) {
+  const start = new Date();
+  const end = addDays(start, days - 1);
+  return {
+    startDate: formatDate(start),
+    endDate: formatDate(end)
+  };
+}
 
 app.get("/", (req, res) => {
-  res.send("Guesty API server is running.");
+  res.send(`<h2>Read Only Multi Calendar</h2>
+    <a href="/calendar">VIEW CALENDAR</a>`);
+});
+
+app.get("/calendar", async (req, res) => {
+  try {
+    const { startDate, endDate } = buildDateRange(3);
+    const token = await getAccessToken();
+
+    // Build date array
+    const dates = [];
+    let cursor = new Date(startDate);
+    const last = new Date(endDate);
+    while (cursor <= last) {
+      dates.push(formatDate(cursor));
+      cursor = addDays(cursor, 1);
+    }
+
+    // Fetch listing info and calendar data for each listing, one at a time
+    const listingsData = [];
+    for (const listingId of TEST_LISTINGS) {
+      let title = listingId;
+      try {
+        const info = await guestyGetListingInfo(listingId, token);
+        title = info.title || info.nickname || listingId;
+      } catch (e) {
+        // fallback to ID if error
+      }
+      let calendar = {};
+      try {
+        calendar = await guestyGetCalendar(listingId, startDate, endDate, token);
+      } catch (e) {
+        // leave calendar empty if error
+      }
+      listingsData.push({ id: listingId, title, calendar });
+      await sleep(1000); // 1 second between requests
+    }
+
+    // Build HTML table
+    let html = `
+      <!doctype html>
+      <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>Read Only Multi Calendar</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 20px; }
+          h2 { margin-bottom: 16px; }
+          table { border-collapse: collapse; width: 100%; }
+          th, td { border: 1px solid #ddd; padding: 8px; text-align: center; vertical-align: top; }
+          th:first-child, td:first-child { text-align: left; min-width: 220px; }
+          th { background: #f5f5f5; }
+          .price { font-weight: bold; }
+          .minstay { color: #666; font-size: 12px; margin-top: 4px; }
+        </style>
+      </head>
+      <body>
+        <h2>Read Only Multi Calendar</h2>
+        <a href="/">HOME</a> &nbsp; <a href="/calendar">VIEW CALENDAR</a>
+        <div>Dates: ${startDate} to ${endDate}</div>
+        <br/>
+        <table>
+          <thead>
+            <tr>
+              <th>Listing</th>
+              ${dates.map(d => `<th>${d.slice(5)}</th>`).join("")}
+            </tr>
+          </thead>
+          <tbody>
+            ${listingsData.map(listing => `
+              <tr>
+                <td>
+                  <div><strong>${listing.title}</strong></div>
+                  <div>${listing.id}</div>
+                </td>
+                ${dates.map(date => {
+                  const cell = listing.calendar[date] || {};
+                  return `
+                    <td>
+                      <div class="price">${cell.price !== undefined ? `$${cell.price}` : "-"}</div>
+                      <div class="minstay">${cell.minNights !== undefined ? `min ${cell.minNights}` : ""}</div>
+                    </td>
+                  `;
+                }).join("")}
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </body>
+      </html>
+    `;
+
+    res.send(html);
+  } catch (e) {
+    res.status(500).send(`<pre>${e.message}</pre>`);
+  }
 });
 
 app.listen(PORT, () => {
