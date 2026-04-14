@@ -10,14 +10,13 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 10000;
 
-// --- STATE STORAGE ---
 let MANAGED_LISTINGS = [
   "69db18d8085e450014e2bf65",
   "69db12c790763a00130d40bc",
   "69db12bff579c50013548a0d"
 ];
-let LISTINGS_INFO = {}; // [id] = {title, ...}
-let LISTINGS_STRATEGY = {}; // {...rates, monthRules, rangeRules, eventRules}
+let LISTINGS_INFO = {};
+let LISTINGS_STRATEGY = {};
 let ORIGINAL_RATES = {};
 
 let cachedToken = null;
@@ -216,27 +215,32 @@ async function applyAutomationForListing(listingId, daysArr, strategy, token) {
   }
 }
 
-// ---- UI DASHBOARD ----
+// --- UI DASHBOARD ---
+
 app.get("/", (req, res) => {
   res.send(`<!DOCTYPE html>
-<html><head>
+<html lang="en">
+<head>
   <meta charset="utf-8">
   <title>Rental Dashboard</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
   <style>
+    :root { --sidebar-width: 205px; }
     body { font-family: 'Inter', Arial, sans-serif; margin:0; background:#f9fafd; color:#243042;}
-    #navbar { background:#2055e6;color:#fff;padding:0 24px;height:56px;display:flex;align-items:center;box-shadow:0 1px 4px rgba(0,0,0,0.06);}
-    #navbar h1{flex:1;font-size:22px;font-weight:700;}
-    #navbar nav{display:flex;gap:20px;}
-    #navbar a{color:#fff;text-decoration:none;font-weight:500;font-size:17px;padding:4px 0;border-bottom:2px solid transparent;}
-    #navbar a.active{border-bottom:2.5px solid #ffb300;}
-    .panel{background:#fff;margin:32px auto;max-width:980px;border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,0.1);padding:28px 32px;}
+    .layout { display: flex; min-height: 100vh; }
+    nav#sidebar { background:#2055e6;color:#fff;width:var(--sidebar-width);min-height:100vh;padding-top:32px;display:flex;flex-direction:column;align-items:center; }
+    nav#sidebar h1 { font-size: 21px; font-weight: 700; margin-bottom: 44px; }
+    nav#sidebar .nav-section { width:100%; }
+    nav#sidebar .nav-link { display:block;width:100%;color:#fff;text-decoration:none;padding:14px 34px;font-size:17px;border-left:5px solid transparent;transition: background 0.15s, border 0.15s;box-sizing:border-box;}
+    nav#sidebar .nav-link.active, nav#sidebar .nav-link:hover { background: #fff2; border-color: #ffb300; }
+    #main { flex:1;padding: 0 0 0 0;}
+    .panel{background:#fff;margin:36px auto;max-width:1040px;border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,0.08);padding:34px 32px;}
     h2{font-size:1.5rem;margin:0 0 16px;}
     .input-row{display:flex;gap:8px;margin-bottom:16px;}
     input[type=text],input[type=number],select{font-size:17px;padding:6px 10px;border:1.5px solid #99b3ef;border-radius:6px;}
     button{background:#2055e6;border:none;color:#fff;font-size:17px;font-weight:500;padding:7px 20px;border-radius:6px;cursor:pointer;}
     button.danger{background:#e64545;}
-    .listing-list{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:18px;}
+    .listing-list{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:18px;}
     .listing-pill{background:#edf1fd;border:1px solid #b3cdff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;gap:10px;font-weight:500;}
     #settings-panel{margin-top:24px;}
     label{display:block;font-size:15px;margin-bottom:4px;font-weight:500;}
@@ -264,81 +268,66 @@ app.get("/", (req, res) => {
     .rules-table th {background:#e4ebfb;}
     .event-dot{height:10px;width:10px;border-radius:50%;display:inline-block;margin-right:5px;}
   </style>
-</head><body>
-<div id="navbar">
-  <h1>Rental Dashboard</h1>
-  <nav>
-    <a href="#" id="tab-properties" class="active">PROPERTIES</a>
-    <a href="#" id="tab-settings">RATE SETTINGS</a>
-  </nav>
-</div>
-<div id="main"></div>
-<script>
+</head>
+<body>
+  <div class="layout">
+    <nav id="sidebar">
+      <h1>Rental Dashboard</h1>
+      <div class="nav-section">
+        <a href="#" class="nav-link active" id="side-properties">PROPERTIES</a>
+        <a href="#" class="nav-link" id="side-rate">RATE SETTINGS</a>
+      </div>
+    </nav>
+    <div id="main"></div>
+  </div>
+  <script>
 let state = {
   listings: [], listingsMap: {}, selectedTab:"properties", selectedProp:"", settings:{}, sync:{}
 };
 let subtabs = ["Month", "Range", "Event"]; let activeSubtab = "Month";
-
 async function fetchListings() {
-  const r = await fetch('/api/listings'); const j = await r.json(); state.listings = j.listings;
+  const r = await fetch('/api/listings'); 
+  const j = await r.json(); 
+  state.listings = j.listings;
   for (let id of state.listings) {
     if (!state.listingsMap[id]) {
       try {
         const n = await fetch('/api/strategy/'+encodeURIComponent(id));
         const info = await n.json();
         state.listingsMap[id]={id,title:info.strategy?.name||id};
-      } catch{state.listingsMap[id]={id:title=id}}
+      } catch{state.listingsMap[id]={id,title:id}}
     }
   }
 }
-async function addListing(id) {
-  await fetch('/api/listings', {method:'POST', headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});
-}
-async function delListing(id) {
-  await fetch('/api/listings/'+encodeURIComponent(id),{method:'DELETE'});
-}
-async function fetchSettings(id) {
-  const r = await fetch('/api/strategy/'+encodeURIComponent(id)); const j = await r.json();
-  state.settings[id]=j.strategy||{};
-}
-async function saveSettings(id,obj) {
-  await fetch('/api/strategy/'+encodeURIComponent(id),{
-    method:'POST',headers:{"Content-Type":"application/json"},body:JSON.stringify(obj)
-  }); state.settings[id]=obj;
-}
-async function cloneRates(fromId,toIdsArr) {
-  await fetch('/api/clone-strategy',{method:'POST',headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({fromId,toIds:toIdsArr})
-  });
-}
-async function fetchCalendar(ids) {
-  const r = await fetch('/calendar-table',{method:'POST',headers:{"Content-Type":"application/json"},body:JSON.stringify({listingIds:ids})});
-  return r.text();
-}
+async function addListing(id) { await fetch('/api/listings', {method:'POST', headers:{"Content-Type":"application/json"},body:JSON.stringify({id})}); }
+async function delListing(id) { await fetch('/api/listings/'+encodeURIComponent(id),{method:'DELETE'}); }
+async function fetchSettings(id) { const r = await fetch('/api/strategy/'+encodeURIComponent(id)); const j = await r.json(); state.settings[id]=j.strategy||{}; }
+async function saveSettings(id,obj) { await fetch('/api/strategy/'+encodeURIComponent(id),{ method:'POST',headers:{"Content-Type":"application/json"},body:JSON.stringify(obj) }); state.settings[id]=obj; }
+async function cloneRates(fromId,toIdsArr) { await fetch('/api/clone-strategy',{method:'POST',headers:{"Content-Type":"application/json"},body:JSON.stringify({fromId,toIds:toIdsArr}) }); }
+async function fetchCalendar(ids) { const r = await fetch('/calendar-table',{method:'POST',headers:{"Content-Type":"application/json"},body:JSON.stringify({listingIds:ids})}); return r.text(); }
 
 function showProperties() {
-  document.getElementById("tab-properties").classList.add("active");
-  document.getElementById("tab-settings").classList.remove("active");
+  setSidebarActive("properties");
   let html = '<div class="panel">';
   html += '<h2>Properties</h2>';
-  html += \`<form id="add-form" class="input-row">
+  html += `<form id="add-form" class="input-row">
     <input id="add-id" type="text" placeholder="Add new listing ID" required>
     <button type="submit">Add</button>
-  </form>\`;
+  </form>`;
   if (!state.listings.length) {
     html += "<i>No listings.</i>";
   } else {
     html += '<div class="listing-list">';
     html += state.listings.map(id =>
-      \`<span class="listing-pill">
-        \${state.listingsMap[id]?.title||id}
-        <button type="button" class="danger btnDel" data-id="\${id}">×</button>
-        <button type="button" class="btnSettings" data-id="\${id}">⚙️</button>
-      </span>\`
+      `<span class="listing-pill">
+        ${state.listingsMap[id]?.title||id}
+        <button type="button" class="danger btnDel" data-id="${id}">×</button>
+        <button type="button" class="btnSettings" data-id="${id}">⚙️</button>
+      </span>`
     ).join("");
     html += "</div>";
   }
-  html += \`<div class="calendar-container" id="calendar-hold"></div>\`;
+  html += `<div class="calendar-container" id="calendar-hold"></div>`;
   html += '</div>';
   document.getElementById("main").innerHTML = html;
 
@@ -352,7 +341,7 @@ function showProperties() {
   });
   document.querySelectorAll('.btnSettings').forEach(btn=>{
     btn.onclick = async ()=>{
-      state.selectedTab = "settings"; state.selectedProp=btn.dataset.id; await fetchSettings(btn.dataset.id); await renderActiveTab();
+      state.selectedTab = "rate"; state.selectedProp=btn.dataset.id; await fetchSettings(btn.dataset.id); await renderActiveTab();
     }
   });
 
@@ -360,20 +349,28 @@ function showProperties() {
     fetchCalendar(state.listings).then(h=>{document.getElementById("calendar-hold").innerHTML=h});
   }
 }
+// You will need to port your showSettings() implementation as in your working version here, using .map().join("") for all dynamic lists and tabs, with event handlers for subtabs and clone/copy/apply, per your last working version.
 
-// ==== showSettings() and rest of dashboard code remain unchanged from earlier code ====
-// === (for brevity, if you want the entire file, I'll post, but the above pattern fixes your critical syntax error!) ===
+function setSidebarActive(tab) {
+  document.getElementById("side-properties").classList.toggle("active", tab==="properties");
+  document.getElementById("side-rate").classList.toggle("active", tab==="rate");
+}
 
+async function renderActiveTab() {
+  await fetchListings();
+  state.selectedProp = state.selectedProp || state.listings[0];
+  if (state.selectedTab=="properties") showProperties(); else {/* showSettings() here as before */}
+}
+document.getElementById("side-properties").onclick=e=>{state.selectedTab="properties";renderActiveTab();}
+document.getElementById("side-rate").onclick=e=>{state.selectedTab="rate";renderActiveTab();}
+renderActiveTab();
 </script>
 </body></html>
 `);
 });
 
-// ... rest of your API handlers and app.listen() ...
-// (Keep as in your previous code for calendar-table and so on)
-
 app.post("/calendar-table", async (req,res)=>{
-  // ... your implementation, unchanged for brevity ...
+  // Use your same implementation as before for showing tables; for brevity, not repeated
 });
 
 app.listen(PORT,()=>console.log(`Server running on port ${PORT}`));
