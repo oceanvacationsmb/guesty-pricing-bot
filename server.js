@@ -1,3 +1,4 @@
+
 import express from "express";
 import axios from "axios";
 import cors from "cors";
@@ -54,21 +55,23 @@ async function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function guestyGetWithRetry(url, config = {}, retries = 5) {
+async function guestyGetWithRetry(url, config = {}, retries = 10) {
   for (let i = 0; i <= retries; i++) {
     try {
       return await axios.get(url, config);
     } catch (e) {
       if (i === retries) throw e;
 
-      let wait = 2000 * (i + 1);
+      let wait = 10000 * (i + 1); // 10 seconds per retry, increases each time
       if (e.response && e.response.status === 429) {
         const retryAfter = e.response.headers['retry-after'];
         if (retryAfter) {
           wait = parseInt(retryAfter, 10) * 1000;
         }
+        console.log(`RATE LIMITED (429) - WAITING ${wait / 1000}s`);
+      } else {
+        console.log(`ERROR - WAITING ${wait / 1000}s:`, e.message);
       }
-      console.log("RATE LIMITED - WAIT", wait);
       await sleep(wait);
     }
   }
@@ -100,6 +103,7 @@ async function getListingsInfo(token) {
       });
       console.log("LISTING INFO ERROR", id, e.response?.data || e.message);
     }
+    await sleep(10000); // 10 seconds between each listing request
   }
 
   return out;
@@ -135,7 +139,7 @@ async function getMultiCalendar(token, startDate, endDate) {
       console.log("ERROR LISTING:", listingId, e.response?.data || e.message);
     }
 
-    await sleep(3000); // Increase if you still get rate limited
+    await sleep(10000); // 10 seconds between each calendar request
   }
 
   console.log("CALENDAR RAW:", JSON.stringify(results, null, 2));
