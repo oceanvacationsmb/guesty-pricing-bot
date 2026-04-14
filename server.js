@@ -63,6 +63,8 @@ const persistedData = loadData();
 
 let MANAGED_LISTINGS = persistedData.managedListings;
 let LISTING_STRATEGIES = persistedData.listingStrategies || {};
+let cachedToken = null;
+let tokenExpiresAt = 0;
 
 async function getAccessToken() {
   if (cachedToken && Date.now() < tokenExpiresAt) return cachedToken;
