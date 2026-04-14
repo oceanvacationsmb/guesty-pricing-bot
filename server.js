@@ -1,6 +1,6 @@
 import express from "express";
 import axios from "axios";
-import cors from "cors";https://github.com/oceanvacationsmb/guesty-pricing-bot/blob/main/server.js
+import cors from "cors";
 import dotenv from "dotenv";
 dotenv.config();
 
