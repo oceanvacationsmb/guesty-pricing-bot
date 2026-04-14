@@ -1156,48 +1156,61 @@ app.get("/calendar", async (req, res) => {
   }
 });
 
+app.get("/calendar", async (req, res) => {
+  try {
+    const { startDate, endDate } = buildDateRange(3);
+    const token = await getAccessToken();
+    const listingsData = await getListingsDataWithTitles(token);
+    const ratesMap = await getRatesMap(token, startDate, endDate);
 
-      }
+    const dates = [];
+    let cursor = new Date(startDate);
+    const last = new Date(endDate);
+    while (cursor <= last) {
+      dates.push(formatDate(cursor));
+      cursor = addDays(cursor, 1);
     }
 
     const content = `
       <div class="topbar">
         <div>
-          <h1 class="page-title">Preview</h1>
-          <div class="page-subtitle">Detailed row view for original price, preview price, and applied rule.</div>
+          <h1 class="page-title">Calendar</h1>
+          <div class="page-subtitle">Original Guesty rate and calculated strategy rate side by side.</div>
+        </div>
+        <div class="chip-row">
+          <div class="chip">Dates: ${startDate} → ${endDate}</div>
+          <div class="chip">Managed Listings: ${MANAGED_LISTINGS.length}</div>
         </div>
       </div>
 
-      <div class="card">
-        <div class="card-title">Strategy Preview</div>
-        <div class="card-subtitle">This is still read only. No values are written back to Guesty.</div>
-        <table>
+      <div class="calendar-wrap">
+        <table class="calendar-table">
           <thead>
             <tr>
               <th>Listing</th>
-              <th>Date</th>
-              <th>Original</th>
-              <th>Preview</th>
-              <th>Rule</th>
-              <th>Guesty Min Nights</th>
-              <th>Strategy Min Nights</th>
-              <th>Strategy Max Nights</th>
+              ${dates.map(d => `<th>${d.slice(5)}</th>`).join("")}
             </tr>
           </thead>
           <tbody>
-            ${rows.map(r => `
+            ${listingsData.map(listing => `
               <tr>
                 <td>
-                  <div><strong>${r.title}</strong></div>
-                  <div class="small-text">${r.id}</div>
+                  <div><strong>${listing.title}</strong></div>
                 </td>
-                <td>${r.date}</td>
-                <td>${r.original !== undefined && r.original !== null ? `$${r.original}` : "-"}</td>
-                <td>${r.preview !== undefined && r.preview !== null ? `$${r.preview}` : "-"}</td>
-                <td>${r.rule || "-"}</td>
-                <td>${r.guestyMin ?? "-"}</td>
-                <td>${r.strategyMin ?? "-"}</td>
-                <td>${r.strategyMax ?? "-"}</td>
+                ${dates.map(date => {
+                  const cell = (ratesMap[listing.id] && ratesMap[listing.id][date]) || {};
+                  return `
+                    <td>
+                      <div class="price-original">${cell.price !== undefined && cell.price !== null ? `$${cell.price}` : "-"}</div>
+                      <div class="price-new">${cell.newPrice !== undefined && cell.newPrice !== null ? `$${cell.newPrice}` : ""}</div>
+                      <div class="price-rule">${cell.ruleLabel || ""}</div>
+                      <div class="small-text" style="margin-top:6px; color:${cell.status === false ? "#dc2626" : "#16a34a"};">
+                        ${cell.status === false ? "Booked" : "Available"}
+                      </div>
+                      <div class="small-text">${cell.minNights !== undefined && cell.minNights !== null ? `Guesty min ${cell.minNights}` : ""}</div>
+                    </td>
+                  `;
+                }).join("")}
               </tr>
             `).join("")}
           </tbody>
@@ -1205,7 +1218,7 @@ app.get("/calendar", async (req, res) => {
       </div>
     `;
 
-    res.send(pageTemplate("Preview", "preview", content));
+    res.send(pageTemplate("Calendar", "calendar", content));
   } catch (e) {
     res.status(500).send(`<pre>${JSON.stringify(e.response?.data || e.message, null, 2)}</pre>`);
   }
