@@ -1,7 +1,8 @@
-const express = require("express");
-const axios = require("axios");
-const cors = require("cors");
-require("dotenv").config();
+import express from "express";
+import axios from "axios";
+import cors from "cors";
+import dotenv from "dotenv";
+dotenv.config();
 
 const app = express();
 app.use(cors());
@@ -57,7 +58,7 @@ async function guestyGetCalendar(listingId, startDate, endDate, token) {
   const url = `https://open-api.guesty.com/v1/availability-pricing/api/calendar/listings/${listingId}`;
   const res = await axios.get(url, {
     headers: { Authorization: `Bearer ${token}` },
-    params: { startDate, endDate } // <-- FIXED HERE
+    params: { startDate, endDate } // <-- FIXED PARAM NAMES
   });
 
   const calendar = res.data.calendar || res.data.results || res.data;
