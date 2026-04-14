@@ -105,16 +105,16 @@ app.post("/calendar-table", async (req,res) => {
     for (const d of days) daymap[(d.date||d.day||d.calendarDate)] = d;
     return { listingId, nick, daymap };
   }));
-  let tableHtml = `<div style="overflow-x:auto;max-width:100%"><div style="max-width:950px;overflow-x:auto">
+  let tableHtml = `<div html="overflow-x:auto;max-width:100%"><div html="max-width:950px;overflow-x:auto">
   <div>Dates: ${dates[0]} to ${dates[dates.length-1]}</div>
-  <div style="overflow-x:auto">
+  <div html="overflow-x:auto">
   <table style="min-width:1300px"><thead><tr>
-  <th>Listing</th>
+  <th class="sticky-col">Listing</th>
   ${dates.map(d=>`<th>${d.slice(5)}</th>`).join("")}
   </tr></thead><tbody>
   ${rows.map(row=>{
     return `<tr>
-    <td><strong>${row.nick}</strong></td>
+    <td class="sticky-col"><strong>${row.nick}</strong></td>
     ${dates.map(dt=>{
       const day = row.daymap[dt];
       const orig = (day?.price!=null ? "$"+day.price:"-");
@@ -173,6 +173,8 @@ app.get("/", (req, res) => {
     .tab-bar{display:flex;gap:14px;margin-bottom:28px;}
     .tab-btn{background:#181a20;color:#fff;border:none;padding:10px 28px;font-size:17px;border-radius:8px;cursor:pointer;}
     .tab-btn.active, .tab-btn:hover{background:#23242a;}
+    th.sticky-col, td.sticky-col { position: sticky; left: 0; background: #24252b; z-index: 2; }
+    th.sticky-col { z-index: 3; }
   </style>
 </head>
 <body>
