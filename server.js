@@ -10,12 +10,53 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 10000;
 
-const TEST_LISTINGS = [
+// Manage your listings here. You can add/remove via API!
+let MANAGED_LISTINGS = [
   "69db18d8085e450014e2bf65",
   "69db12c790763a00130d40bc",
   "69db12bff579c50013548a0d",
   "69db0826f579c50013546169"
 ];
+
+// Store strategies per listing for future enhancement
+let LISTING_STRATEGIES = {};
+
+// ========== LISTING MANAGEMENT ENDPOINTS ==========
+
+// List all managed listings
+app.get("/api/listings", (req, res) => {
+  res.json({ listings: MANAGED_LISTINGS });
+});
+
+// Add a listing by ID
+app.post("/api/listings", (req, res) => {
+  const { id } = req.body;
+  if (!id || typeof id !== "string" || MANAGED_LISTINGS.includes(id)) {
+    return res.status(400).json({ error: "Invalid or duplicate listing ID" });
+  }
+  MANAGED_LISTINGS.push(id);
+  res.json({ listings: MANAGED_LISTINGS });
+});
+
+// Remove a listing by ID
+app.delete("/api/listings/:id", (req, res) => {
+  const { id } = req.params;
+  MANAGED_LISTINGS = MANAGED_LISTINGS.filter(lid => lid !== id);
+  delete LISTING_STRATEGIES[id];
+  res.json({ listings: MANAGED_LISTINGS });
+});
+
+// In the future: Manage strategy for each property (scaffold)
+app.get("/api/strategy/:id", (req, res) => {
+  res.json({ strategy: LISTING_STRATEGIES[req.params.id] || {} });
+});
+app.post("/api/strategy/:id", (req, res) => {
+  const strategy = req.body;
+  LISTING_STRATEGIES[req.params.id] = strategy;
+  res.json({ ok: true });
+});
+
+// ================== EXISTING CODE ==================
 
 let cachedToken = null;
 let tokenExpiresAt = null;
@@ -32,9 +73,7 @@ async function getAccessToken() {
       client_secret: process.env.GUESTY_CLIENT_SECRET
     }),
     {
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded"
-      }
+      headers: { "Content-Type": "application/x-www-form-urlencoded" }
     }
   );
 
@@ -59,11 +98,9 @@ async function guestyApiGet(url, config = {}, retries = 5) {
         await sleep(wait);
         continue;
       }
-
       throw e;
     }
   }
-
   throw new Error("Too many retries due to rate limiting.");
 }
 
@@ -144,6 +181,8 @@ function getDayMinNights(day) {
   );
 }
 
+// ================== UI ROUTES ==================
+
 app.get("/", (req, res) => {
   res.send(`
     <h2>Read Only Multi Calendar</h2>
@@ -166,22 +205,19 @@ app.get("/calendar", async (req, res) => {
     }
 
     const listingsData = [];
-    for (const listingId of TEST_LISTINGS) {
+    for (const listingId of MANAGED_LISTINGS) {
       let title = listingId;
-
       try {
         const info = await guestyGetListingInfo(listingId, token);
         title = info.title || info.nickname || listingId;
       } catch (e) {
         console.log("LISTING INFO ERROR:", listingId, e.response?.data || e.message);
       }
-
       listingsData.push({ id: listingId, title });
       await sleep(500);
     }
 
-    const calendarData = await guestyGetBatchCalendar(TEST_LISTINGS, startDate, endDate, token);
-
+    const calendarData = await guestyGetBatchCalendar(MANAGED_LISTINGS, startDate, endDate, token);
     console.log("Batch calendar API response:", JSON.stringify(calendarData, null, 2));
 
     const ratesMap = {};
