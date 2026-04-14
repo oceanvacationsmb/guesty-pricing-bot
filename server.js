@@ -13,9 +13,8 @@ const TEST_LISTINGS = [
   "69db18d8085e450014e2bf65",
   "69db12c790763a00130d40bc",
   "69db12bff579c50013548a0d",
-  "69db0826f579c50013546169",
-  "69db18d8085e450014e2bf65"
-];
+  "69db0826f579c50013546169"
+  ];
 
 let cachedToken = null;
 let tokenExpiresAt = null;
