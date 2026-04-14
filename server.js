@@ -46,9 +46,28 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+// Robust GET with retry/backoff for 429 errors
+async function guestyApiGet(url, config = {}, retries = 5) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await axios.get(url, config);
+    } catch (e) {
+      if (e.response && e.response.status === 429) {
+        const retryAfter = e.response.headers['retry-after'];
+        const wait = retryAfter ? parseInt(retryAfter, 10) * 1000 : 60000;
+        console.log(`Rate limited. Waiting ${wait / 1000}s before retrying...`);
+        await sleep(wait);
+      } else {
+        throw e;
+      }
+    }
+  }
+  throw new Error("Too many retries due to rate limiting.");
+}
+
 async function guestyGetListingInfo(listingId, token) {
   const url = `https://open-api.guesty.com/v1/listings/${listingId}`;
-  const res = await axios.get(url, {
+  const res = await guestyApiGet(url, {
     headers: { Authorization: `Bearer ${token}` }
   });
   return res.data;
@@ -56,9 +75,9 @@ async function guestyGetListingInfo(listingId, token) {
 
 async function guestyGetCalendar(listingId, startDate, endDate, token) {
   const url = `https://open-api.guesty.com/v1/availability-pricing/api/calendar/listings/${listingId}`;
-  const res = await axios.get(url, {
+  const res = await guestyApiGet(url, {
     headers: { Authorization: `Bearer ${token}` },
-    params: { startDate, endDate } // <-- FIXED PARAM NAMES
+    params: { startDate, endDate }
   });
 
   const calendar = res.data.calendar || res.data.results || res.data;
@@ -127,7 +146,7 @@ app.get("/calendar", async (req, res) => {
         // leave calendar empty if error
       }
       listingsData.push({ id: listingId, title, calendar });
-      await sleep(10000); // 10 second between requests
+      await sleep(30000); // 30 seconds between requests
     }
 
     // Build HTML table
