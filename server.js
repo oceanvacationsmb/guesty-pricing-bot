@@ -563,26 +563,37 @@ function pageTemplate(title, activePage, content, extraScripts = "") {
           letter-spacing:1px;
         }
         .calendar-wrap {
-          overflow:auto;
-          border-radius:16px;
-          border:1px solid var(--line);
-          background:var(--panel);
-        }
+  overflow-x: auto;
+  overflow-y: auto;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  max-width: 100%;
+}
         .calendar-table {
-          min-width:1100px;
-        }
+  min-width: 3000px;
+  border-collapse: separate;
+  border-spacing: 0;
+}
         .calendar-table th, .calendar-table td {
           text-align:center;
           min-width:110px;
           border-bottom:1px solid var(--line);
         }
-        .calendar-table th:first-child, .calendar-table td:first-child {
-  text-align:left;
-  min-width:250px;
-  position:sticky;
-  left:0;
-  background:#ffffff;
-  z-index:5;
+        .calendar-table th:first-child,
+.calendar-table td:first-child {
+  text-align: left;
+  min-width: 260px;
+  max-width: 260px;
+  position: sticky;
+  left: 0;
+  background: #ffffff;
+  z-index: 20;
+  box-shadow: 6px 0 8px rgba(15, 23, 42, 0.06);
+}
+
+.calendar-table th:first-child {
+  z-index: 25;
 }
         .price-original {
           font-size:15px;
