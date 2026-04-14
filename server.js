@@ -1130,16 +1130,19 @@ app.get("/calendar", async (req, res) => {
                   
                 </td>
                 ${dates.map(date => {
-                  const cell = (ratesMap[listing.id] && ratesMap[listing.id][date]) || {};
-                  return `
-                    <td>
-                      <div class="price-original">${cell.price !== undefined && cell.price !== null ? `$${cell.price}` : "-"}</div>
-                      <div class="price-new">${cell.newPrice !== undefined && cell.newPrice !== null ? `$${cell.newPrice}` : ""}</div>
-                      <div class="price-rule">${cell.ruleLabel || ""}</div>
-                      <div class="small-text">${cell.minNights !== undefined && cell.minNights !== null ? `Guesty min ${cell.minNights}` : ""}</div>
-                    </td>
-                  `;
-                }).join("")}
+  const cell = (ratesMap[listing.id] && ratesMap[listing.id][date]) || {};
+  return `
+    <td>
+      <div class="price-original">${cell.price !== undefined && cell.price !== null ? `$${cell.price}` : "-"}</div>
+      <div class="price-new">${cell.newPrice !== undefined && cell.newPrice !== null ? `$${cell.newPrice}` : ""}</div>
+      <div class="price-rule">${cell.ruleLabel || ""}</div>
+      <div class="small-text" style="margin-top:6px; color:${cell.status === false ? "#dc2626" : "#16a34a"};">
+        ${cell.status === false ? "Booked" : "Available"}
+      </div>
+      <div class="small-text">${cell.minNights !== undefined && cell.minNights !== null ? `Guesty min ${cell.minNights}` : ""}</div>
+    </td>
+  `;
+}).join("")}
               </tr>
             `).join("")}
           </tbody>
