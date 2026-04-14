@@ -878,6 +878,7 @@ app.get("/listings", async (req, res) => {
   res.send(pageTemplate("Listings", "listings", content, scripts));
 });
 
+const content = `
 app.get("/settings", async (req, res) => {
   const token = await getAccessToken();
   const listingsData = await getListingsDataWithTitles(token);
