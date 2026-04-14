@@ -808,9 +808,13 @@ app.get("/listings", async (req, res) => {
         </form>
       </div>
 
-      <div id="listingPills">
-  ${listingsData.map(l => `<span class="listing-pill">${l.title}</span>`).join("")}
-</div>
+            <div class="card">
+        <div class="card-title">Managed Properties</div>
+        <div class="card-subtitle">Current managed properties by nickname.</div>
+        <div id="listingPills">
+          ${listingsData.map(l => `<span class="listing-pill">${l.title}</span>`).join("")}
+        </div>
+      </div>
 
     <div class="card" style="margin-top:20px;">
       <div class="card-title">Current Managed Listings</div>
@@ -878,10 +882,11 @@ app.get("/listings", async (req, res) => {
   res.send(pageTemplate("Listings", "listings", content, scripts));
 });
 
-const content = `
+
 app.get("/settings", async (req, res) => {
   const token = await getAccessToken();
   const listingsData = await getListingsDataWithTitles(token);
+  const content = `
 
   <div class="topbar">
   <div>
