@@ -301,10 +301,46 @@ function applyStrategy(price, strategy, dateStr) {
     return {
       newPrice: price,
       ruleLabel: "Disabled",
-      minNights: strategy?.minNights ?? null,
-      maxNights: strategy?.maxNights ?? null
+      appliedPct: 0,
+      minNights: strategy?.gapNights ?? null
     };
   }
+
+  const today = new Date();
+  const target = new Date(dateStr);
+  const diffTime = target.getTime() - today.getTime();
+  const daysBefore = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+  let appliedPct = 0;
+  let ruleLabel = "No Drop";
+
+  if (daysBefore >= 0 && daysBefore <= 7) {
+    appliedPct = Number(strategy.drop0to7 || 0);
+    ruleLabel = "0-7 Days";
+  } else if (daysBefore >= 8 && daysBefore <= 14) {
+    appliedPct = Number(strategy.drop8to13 || 0);
+    ruleLabel = "8-14 Days";
+  } else if (daysBefore >= 15 && daysBefore <= 21) {
+    appliedPct = Number(strategy.drop14to21 || 0);
+    ruleLabel = "15-21 Days";
+  } else if (daysBefore >= 22 && daysBefore <= 30) {
+    appliedPct = Number(strategy.drop22to30 || 0);
+    ruleLabel = "22-30 Days";
+  }
+
+  let newPrice = price - (price * (appliedPct / 100));
+
+  if (strategy.min) {
+    newPrice = Math.max(newPrice, Number(strategy.min));
+  }
+
+  return {
+    newPrice: Math.round(newPrice),
+    ruleLabel,
+    appliedPct,
+    minNights: Number(strategy.gapNights || 0)
+  };
+}
 
   const applied = getAppliedRule(strategy, dateStr);
   let newPrice = price + (price * ((applied.pct ?? 0) / 100));
