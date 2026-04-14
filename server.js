@@ -342,20 +342,6 @@ function applyStrategy(price, strategy, dateStr) {
   };
 }
 
-  const applied = getAppliedRule(strategy, dateStr);
-  let newPrice = price + (price * ((applied.pct ?? 0) / 100));
-
-  if (applied.min) newPrice = Math.max(newPrice, applied.min);
-  if (applied.max) newPrice = Math.min(newPrice, applied.max);
-
-  return {
-    newPrice: Math.round(newPrice),
-    ruleLabel: applied.label,
-    minNights: applied.minNights ?? strategy.minNights ?? null,
-    maxNights: applied.maxNights ?? strategy.maxNights ?? null
-  };
-}
-
 function pageTemplate(title, activePage, content, extraScripts = "") {
   return `
     <!doctype html>
