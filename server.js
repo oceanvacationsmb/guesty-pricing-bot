@@ -127,7 +127,7 @@ app.get("/calendar", async (req, res) => {
         // leave calendar empty if error
       }
       listingsData.push({ id: listingId, title, calendar });
-      await sleep(1000); // 1 second between requests
+      await sleep(10000); // 10 second between requests
     }
 
     // Build HTML table
