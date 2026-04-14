@@ -57,7 +57,7 @@ async function guestyGetCalendar(listingId, startDate, endDate, token) {
   const url = `https://open-api.guesty.com/v1/availability-pricing/api/calendar/listings/${listingId}`;
   const res = await axios.get(url, {
     headers: { Authorization: `Bearer ${token}` },
-    params: { from: startDate, to: endDate }
+    params: { startDate, endDate } // <-- FIXED HERE
   });
 
   const calendar = res.data.calendar || res.data.results || res.data;
