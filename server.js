@@ -903,7 +903,7 @@ app.get("/listings", async (req, res) => {
 app.get("/settings", async (req, res) => {
   const token = await getAccessToken();
   const listingsData = await getListingsDataWithTitles(token);
-  const content = `
+
 
   <div class="topbar">
   <div>
