@@ -1,6 +1,6 @@
 import express from "express";
 import axios from "axios";
-import cors from "cors";
+import cors from "cors";https://github.com/oceanvacationsmb/guesty-pricing-bot/blob/main/server.js
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -583,13 +583,16 @@ function pageTemplate(title, activePage, content, extraScripts = "") {
         .calendar-table th:first-child,
 .calendar-table td:first-child {
   text-align: left;
-  min-width: 260px;
-  max-width: 260px;
+  min-width: 170px;
+  max-width: 170px;
+  width: 170px;
   position: sticky;
   left: 0;
   background: #ffffff;
   z-index: 20;
   box-shadow: 6px 0 8px rgba(15, 23, 42, 0.06);
+  white-space: normal;
+  word-break: break-word;
 }
 
 .calendar-table th:first-child {
@@ -1101,7 +1104,7 @@ app.get("/settings", async (req, res) => {
 
 app.get("/calendar", async (req, res) => {
   try {
-    const { startDate, endDate } = buildDateRange(3);
+    const { startDate, endDate } = buildDateRange(30);
     const token = await getAccessToken();
     const listingsData = await getListingsDataWithTitles(token);
     const ratesMap = await getRatesMap(token, startDate, endDate);
@@ -1168,73 +1171,6 @@ app.get("/calendar", async (req, res) => {
   }
 });
 
-app.get("/calendar", async (req, res) => {
-  try {
-    const { startDate, endDate } = buildDateRange(3);
-    const token = await getAccessToken();
-    const listingsData = await getListingsDataWithTitles(token);
-    const ratesMap = await getRatesMap(token, startDate, endDate);
-
-    const dates = [];
-    let cursor = new Date(startDate);
-    const last = new Date(endDate);
-    while (cursor <= last) {
-      dates.push(formatDate(cursor));
-      cursor = addDays(cursor, 1);
-    }
-
-    const content = `
-      <div class="topbar">
-        <div>
-          <h1 class="page-title">Calendar</h1>
-          <div class="page-subtitle">Original Guesty rate and calculated strategy rate side by side.</div>
-        </div>
-        <div class="chip-row">
-          <div class="chip">Dates: ${startDate} → ${endDate}</div>
-          <div class="chip">Managed Listings: ${MANAGED_LISTINGS.length}</div>
-        </div>
-      </div>
-
-      <div class="calendar-wrap">
-        <table class="calendar-table">
-          <thead>
-            <tr>
-              <th>Listing</th>
-              ${dates.map(d => `<th>${d.slice(5)}</th>`).join("")}
-            </tr>
-          </thead>
-          <tbody>
-            ${listingsData.map(listing => `
-              <tr>
-                <td>
-                  <div><strong>${listing.title}</strong></div>
-                </td>
-                ${dates.map(date => {
-                  const cell = (ratesMap[listing.id] && ratesMap[listing.id][date]) || {};
-                  return `
-                    <td>
-                      <div class="price-original">${cell.price !== undefined && cell.price !== null ? `$${cell.price}` : "-"}</div>
-                      <div class="price-new">${cell.newPrice !== undefined && cell.newPrice !== null ? `$${cell.newPrice}` : ""}</div>
-                      <div class="price-rule">${cell.ruleLabel || ""}</div>
-                      <div class="small-text" style="margin-top:6px; color:${cell.status === false ? "#dc2626" : "#16a34a"};">
-                        ${cell.status === false ? "Booked" : "Available"}
-                      </div>
-                      <div class="small-text">${cell.minNights !== undefined && cell.minNights !== null ? `Guesty min ${cell.minNights}` : ""}</div>
-                    </td>
-                  `;
-                }).join("")}
-              </tr>
-            `).join("")}
-          </tbody>
-        </table>
-      </div>
-    `;
-
-    res.send(pageTemplate("Calendar", "calendar", content));
-  } catch (e) {
-    res.status(500).send(`<pre>${JSON.stringify(e.response?.data || e.message, null, 2)}</pre>`);
-  }
-});
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
