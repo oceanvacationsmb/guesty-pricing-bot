@@ -909,13 +909,13 @@ app.get("/settings", async (req, res) => {
   const token = await getAccessToken();
   const listingsData = await getListingsDataWithTitles(token);
 
-
-  <div class="topbar">
-  <div>
-    <h1 class="page-title">Settings</h1>
-    <div class="page-subtitle">Set simple pricing rules and choose which properties to apply them to.</div>
-  </div>
-</div>
+  const content = `
+    <div class="topbar">
+      <div>
+        <h1 class="page-title">Settings</h1>
+        <div class="page-subtitle">Set simple pricing rules and choose which properties to apply them to.</div>
+      </div>
+    </div>
 
     ${listingsData.map(listing => {
       const strategy = LISTING_STRATEGIES[listing.id] || createDefaultStrategy();
