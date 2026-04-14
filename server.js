@@ -393,8 +393,9 @@ function pageTemplate(title, activePage, content, extraScripts = "") {
           line-height:1.45;
         }
         .main {
-          padding:26px;
-        }
+  padding: 26px;
+  overflow: hidden;
+}
         .topbar {
           display:flex;
           justify-content:space-between;
@@ -563,13 +564,16 @@ function pageTemplate(title, activePage, content, extraScripts = "") {
           letter-spacing:1px;
         }
         .calendar-wrap {
+  width: 100%;
+  max-width: 100%;
+  height: 75vh;
   overflow-x: auto;
   overflow-y: auto;
   border-radius: 16px;
   border: 1px solid var(--line);
   background: var(--panel);
-  max-width: 100%;
 }
+
         .calendar-table {
   min-width: 3000px;
   border-collapse: separate;
