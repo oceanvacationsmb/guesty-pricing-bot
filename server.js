@@ -652,7 +652,6 @@ function pageTemplate(title, activePage, content, extraScripts = "") {
           <div class="brand">Pricing <span>Studio</span></div>
           <nav class="nav">
             <div class="nav-section-title">Main</div>
-            <a class="${activePage === "dashboard" ? "active" : ""}" href="/dashboard">Dashboard</a>
             <a class="${activePage === "calendar" ? "active" : ""}" href="/calendar">Calendar</a>
             <a class="${activePage === "settings" ? "active" : ""}" href="/settings">Settings</a>
             <a class="${activePage === "listings" ? "active" : ""}" href="/listings">Listings</a>
