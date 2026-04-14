@@ -15,8 +15,6 @@ let MANAGED_LISTINGS = [
   "69db12c790763a00130d40bc",
   "69db12bff579c50013548a0d"
 ];
-
-// Master strategies/state
 let LISTINGS_INFO = {};
 let LISTINGS_STRATEGY = {};
 let ORIGINAL_RATES = {};
@@ -24,8 +22,6 @@ let ORIGINAL_RATES = {};
 let cachedToken = null;
 let tokenExpiresAt = null;
 
-// --- Guesty / API helpers ---
-// <--- same as before, keep all function bodies here (getAccessToken, sleep, etc) --->
 async function getAccessToken() {
   if (cachedToken && Date.now() < tokenExpiresAt) return cachedToken;
   const res = await axios.post(
@@ -145,7 +141,6 @@ app.post("/api/clone-strategy", (req,res) => {
   res.json({ok:true});
 });
 
-// ----------- AUTOMATION LOGIC: Apply All Rules ----
 function rateRuleForDate(strategy, dateStr) {
   const dt = new Date(dateStr);
   for (const e of (strategy.eventRules||[])) {
@@ -154,14 +149,8 @@ function rateRuleForDate(strategy, dateStr) {
       const [sy,sm,sd]=e.start.split("-"), [ey,em,ed]=e.end.split("-");
       const dmonth = (dt.getMonth()+1).toString().padStart(2,'0');
       const dday = dt.getDate().toString().padStart(2,'0');
-      if (
-        (dmonth+dday >= sm+sd && dmonth+dday <= em+ed)
-      ) {
-        return {src:"event", ...e};
-      }
-    } else if (dateStr>=e.start && dateStr<=e.end) {
-      return {src:"event", ...e};
-    }
+      if ((dmonth+dday >= sm+sd && dmonth+dday <= em+ed)) return {src:"event", ...e};
+    } else if (dateStr>=e.start && dateStr<=e.end) return {src:"event", ...e};
   }
   for (const r of (strategy.rangeRules||[])) {
     if (!r.enabled) continue;
@@ -196,19 +185,14 @@ async function applyAutomationForListing(listingId, daysArr, strategy, token) {
       else if (daysAway<=14&&strategy.drop_8_14) adjPrice=Math.round(origPrice*(1-(parseFloat(strategy.drop_8_14)||0)/100));
       else if (daysAway<=21&&strategy.drop_15_21) adjPrice=Math.round(origPrice*(1-(parseFloat(strategy.drop_15_21)||0)/100));
       else if (daysAway<=30&&strategy.drop_22_30) adjPrice=Math.round(origPrice*(1-(parseFloat(strategy.drop_22_30)||0)/100));
-      if (strategy.weekendPct && [0,6].includes(new Date(theDate).getDay())) {
-        adjPrice = Math.round(origPrice*(1+(parseFloat(strategy.weekendPct)||0)/100));
-      }
-      if (strategy.weekdayPct && ![0,6].includes(new Date(theDate).getDay())) {
-        adjPrice = Math.round(origPrice*(1-(parseFloat(strategy.weekdayPct)||0)/100));
-      }
+      if (strategy.weekendPct && [0,6].includes(new Date(theDate).getDay())) adjPrice = Math.round(origPrice*(1+(parseFloat(strategy.weekendPct)||0)/100));
+      if (strategy.weekdayPct && ![0,6].includes(new Date(theDate).getDay())) adjPrice = Math.round(origPrice*(1-(parseFloat(strategy.weekdayPct)||0)/100));
       if (strategy.minRate) adjPrice = Math.max(adjPrice, parseFloat(strategy.minRate));
       if (strategy.maxRate) adjPrice = Math.min(adjPrice, parseFloat(strategy.maxRate));
     }
     if (adjPrice !== getDayPrice(day)) {
-      try { await guestyUpdateCalendarDate(listingId, theDate, {price: adjPrice}, token);
-        day.price = adjPrice;
-      } catch{}
+      try { await guestyUpdateCalendarDate(listingId, theDate, {price: adjPrice}, token); day.price = adjPrice; }
+      catch{}
     }
     let minN = special && special.minNights ? parseInt(special.minNights) : (strategy.minNights ? parseInt(strategy.minNights):undefined);
     if (minN && day.minNights>minN) {
@@ -217,13 +201,9 @@ async function applyAutomationForListing(listingId, daysArr, strategy, token) {
   }
 }
 
-// --- UI DASHBOARD ---
-// (No template literal errors, all mapped UI blocks are .map().join("") style)
-// ... INCLUDE FULL PROPERTIES TAB, CALENDAR DISPLAY, SETTINGS UI, SIDEBAR, TOGGLE, ALL SUBTABS ... 
-
-// ADD: Copy the UI/dashboard HTML+JS from my previous long answer (the one tagged "FULL WORKING PROPERTY RATE DASHBOARD")
-// Paste the showProperties(), showSettings(), and event handler methods using the .map().join("") pattern
-// For full version: reply and say "send me the LATEST dashboard JS in showSettings too" and I will immediately paste (message will be huge)
+app.get("/", (req, res) => {
+  res.sendFile(__dirname + "/dashboard.html");
+});
 
 app.post("/calendar-table", async (req,res)=>{
   try {
@@ -248,7 +228,6 @@ app.post("/calendar-table", async (req,res)=>{
       listingsData.push({id:listingId,title,days});
       await sleep(350);
     }
-    // Render the pro table
     const tableHtml = `
       <div>Dates: ${startDate} to ${endDate}</div>
       <table><thead><tr>
