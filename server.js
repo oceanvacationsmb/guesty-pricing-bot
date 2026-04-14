@@ -190,8 +190,130 @@ app.get("/", (req, res) => {
   `);
 });
 
-app.get("/calendar", async (req, res) => {
+app.get("/calendar", (req, res) => {
+  const html = `
+    <!doctype html>
+    <html>
+    <head>
+      <meta charset="utf-8" />
+      <title>Property Manager Calendar</title>
+      <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        h2 { margin-bottom: 16px; }
+        #panel { background: #eef; padding: 18px; border-radius: 8px; margin-bottom: 20px; }
+        #add-form { display: inline-flex; gap: 8px; }
+        #add-form input { font-size: 16px; padding: 4px; }
+        #listings-list { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+        .listing-pill { background: #dde; border-radius: 5px; padding: 7px 12px; display: flex; align-items: center; gap: 8px; }
+        .listing-del { color: #c00; cursor: pointer; font-weight: bold; margin-left: 7px; }
+        #calendar-holder { margin-top: 30px; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: center; vertical-align: top; }
+        th:first-child, td:first-child { text-align: left; min-width: 220px; }
+        th { background: #f5f5f5; }
+        .price { font-weight: bold; }
+        .minstay { color: #666; font-size: 12px; margin-top: 4px; }
+      </style>
+    </head>
+    <body>
+      <h2>Property Manager Calendar</h2>
+      <a href="/">HOME</a> &nbsp; <a href="/calendar">VIEW CALENDAR</a>
+      <div id="panel">
+        <b>Managed Listing IDs:</b>
+        <form id="add-form">
+          <input id="add-id" type="text" placeholder="Add listing ID" required />
+          <button type="submit">Add</button>
+        </form>
+        <div id="listings-list"></div>
+        <div style="font-size:13px;margin-top:9px;color:#666;">
+          Add/remove property IDs you want to manage. Calendar updates automatically!
+        </div>
+      </div>
+      <div id="calendar-holder"></div>
+      <script>
+        // Helper: get managed listings
+        const getListings = async () => {
+          const res = await fetch("/api/listings");
+          const data = await res.json();
+          return data.listings;
+        };
+
+        // Render the add/remove panel
+        const renderListings = (listings) => {
+          const listDiv = document.getElementById("listings-list");
+          if (!listings.length) {
+            listDiv.innerHTML = "<i>No property IDs managed yet</i>";
+            return;
+          }
+          listDiv.innerHTML = listings.map(id => 
+            '<span class="listing-pill">' +
+              id + ' <span class="listing-del" data-id="'+id+'" title="remove">&#x2716;</span>' +
+            '</span>'
+          ).join("");
+          Array.from(document.querySelectorAll(".listing-del")).forEach(btn => {
+            btn.onclick = async () => {
+              await fetch("/api/listings/"+btn.dataset.id, { method: "DELETE" });
+              loadAll();
+            };
+          });
+        };
+
+        // Add new property via form
+        document.getElementById("add-form").onsubmit = async (e) => {
+          e.preventDefault();
+          const id = document.getElementById("add-id").value.trim();
+          if (!id) return;
+          await fetch("/api/listings", { 
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id }) 
+          });
+          document.getElementById("add-id").value = "";
+          loadAll();
+        };
+
+        // Render the calendar table
+        const renderCalendar = (calendarHtml) => {
+          document.getElementById("calendar-holder").innerHTML = calendarHtml;
+        };
+
+        // Server call to get calendar HTML
+        const loadCalendar = async (ids) => {
+          if (!ids.length) {
+            renderCalendar("<b>No properties to show.</b>");
+            return;
+          }
+          const res = await fetch("/calendar-table", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ listingIds: ids })
+          });
+          const html = await res.text();
+          renderCalendar(html);
+        };
+
+        // Main loader
+        const loadAll = async () => {
+          const ids = await getListings();
+          renderListings(ids);
+          loadCalendar(ids);
+        };
+
+        loadAll();
+      </script>
+    </body>
+    </html>
+  `;
+  res.send(html);
+});
+
+// NEW: API endpoint to render the calendar HTML
+app.post("/calendar-table", async (req, res) => {
   try {
+    const { listingIds } = req.body;
+    if (!listingIds || !Array.isArray(listingIds) || !listingIds.length) {
+      return res.send("<b>No properties to show.</b>");
+    }
     const { startDate, endDate } = buildDateRange(3);
     const token = await getAccessToken();
 
@@ -205,20 +327,19 @@ app.get("/calendar", async (req, res) => {
     }
 
     const listingsData = [];
-    for (const listingId of MANAGED_LISTINGS) {
+    for (const listingId of listingIds) {
       let title = listingId;
       try {
         const info = await guestyGetListingInfo(listingId, token);
         title = info.title || info.nickname || listingId;
-      } catch (e) {
-        console.log("LISTING INFO ERROR:", listingId, e.response?.data || e.message);
+      } catch {
+        // ignore fetch errors
       }
       listingsData.push({ id: listingId, title });
       await sleep(500);
     }
 
-    const calendarData = await guestyGetBatchCalendar(MANAGED_LISTINGS, startDate, endDate, token);
-    console.log("Batch calendar API response:", JSON.stringify(calendarData, null, 2));
+    const calendarData = await guestyGetBatchCalendar(listingIds, startDate, endDate, token);
 
     const ratesMap = {};
     const days = extractDays(calendarData);
@@ -227,73 +348,47 @@ app.get("/calendar", async (req, res) => {
       const listingId = day.listingId || day.listing?._id || day.listing?.id;
       const date = day.date || day.day || day.calendarDate;
       if (!listingId || !date) continue;
-
       if (!ratesMap[listingId]) ratesMap[listingId] = {};
-
       ratesMap[listingId][date] = {
         price: getDayPrice(day),
         minNights: getDayMinNights(day)
       };
     }
 
-    const html = `
-      <!doctype html>
-      <html>
-      <head>
-        <meta charset="utf-8" />
-        <title>Read Only Multi Calendar</title>
-        <style>
-          body { font-family: Arial, sans-serif; margin: 20px; }
-          h2 { margin-bottom: 16px; }
-          table { border-collapse: collapse; width: 100%; }
-          th, td { border: 1px solid #ddd; padding: 8px; text-align: center; vertical-align: top; }
-          th:first-child, td:first-child { text-align: left; min-width: 220px; }
-          th { background: #f5f5f5; }
-          .price { font-weight: bold; }
-          .minstay { color: #666; font-size: 12px; margin-top: 4px; }
-        </style>
-      </head>
-      <body>
-        <h2>Read Only Multi Calendar</h2>
-        <a href="/">HOME</a> &nbsp; <a href="/calendar">VIEW CALENDAR</a>
-        <div>Dates: ${startDate} to ${endDate}</div>
-        <br/>
-        <table>
-          <thead>
+    // Render only the table HTML (not whole document)
+    const tableHtml = `
+      <div>Dates: ${startDate} to ${endDate}</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Listing</th>
+            ${dates.map(d => `<th>${d.slice(5)}</th>`).join("")}
+          </tr>
+        </thead>
+        <tbody>
+          ${listingsData.map(listing => `
             <tr>
-              <th>Listing</th>
-              ${dates.map(d => `<th>${d.slice(5)}</th>`).join("")}
+              <td>
+                <div><strong>${listing.title}</strong></div>
+                <div>${listing.id}</div>
+              </td>
+              ${dates.map(date => {
+                const cell = (ratesMap[listing.id] && ratesMap[listing.id][date]) || {};
+                return `
+                  <td>
+                    <div class="price">${cell.price !== undefined && cell.price !== null ? `$${cell.price}` : "-"}</div>
+                    <div class="minstay">${cell.minNights !== undefined && cell.minNights !== null ? `min ${cell.minNights}` : ""}</div>
+                  </td>
+                `;
+              }).join("")}
             </tr>
-          </thead>
-          <tbody>
-            ${listingsData.map(listing => `
-              <tr>
-                <td>
-                  <div><strong>${listing.title}</strong></div>
-                  <div>${listing.id}</div>
-                </td>
-                ${dates.map(date => {
-                  const cell = (ratesMap[listing.id] && ratesMap[listing.id][date]) || {};
-                  return `
-                    <td>
-                      <div class="price">${cell.price !== undefined && cell.price !== null ? `$${cell.price}` : "-"}</div>
-                      <div class="minstay">${cell.minNights !== undefined && cell.minNights !== null ? `min ${cell.minNights}` : ""}</div>
-                    </td>
-                  `;
-                }).join("")}
-              </tr>
-            `).join("")}
-          </tbody>
-        </table>
-      </body>
-      </html>
+          `).join("")}
+        </tbody>
+      </table>
     `;
-
-    res.send(html);
+    res.send(tableHtml);
   } catch (e) {
-    res.status(500).send(
-      `<pre>${JSON.stringify(e.response?.data || e.message, null, 2)}</pre>`
-    );
+    res.send("<pre>" + (e.response?.data ? JSON.stringify(e.response.data, null, 2) : e.message) + "</pre>");
   }
 });
 
