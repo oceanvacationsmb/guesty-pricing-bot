@@ -759,6 +759,10 @@ app.post("/api/strategy/:id", (req, res) => {
   res.json({ ok: true, strategy });
 });
 
+app.get("/", (req, res) => {
+  res.redirect("/calendar");
+});
+
 app.get("/listings", async (req, res) => {
   const content = `
     <div class="topbar">
@@ -784,14 +788,9 @@ app.get("/listings", async (req, res) => {
         </form>
       </div>
 
-      <div class="card">
-        <div class="card-title">Managed IDs</div>
-        <div class="card-subtitle">Only these listings are used by the preview and settings pages.</div>
-        <div id="listingPills">
-          ${MANAGED_LISTINGS.map(id => `<span class="listing-pill">${id}</span>`).join("")}
-        </div>
-      </div>
-    </div>
+      <div id="listingPills">
+  ${listingsData.map(l => `<span class="listing-pill">${l.title}</span>`).join("")}
+</div>
 
     <div class="card" style="margin-top:20px;">
       <div class="card-title">Current Managed Listings</div>
@@ -804,11 +803,11 @@ app.get("/listings", async (req, res) => {
           </tr>
         </thead>
         <tbody>
-          ${MANAGED_LISTINGS.map(id => `
-            <tr>
-              <td>${id}</td>
+          ${listingsData.map(listing => `
+  <tr>
+    <td>${listing.title}</td>
               <td>
-                <button class="btn btn-danger" onclick="removeListing('${id}')">Remove</button>
+                <button class="btn btn-danger" onclick="removeListing('${listing.id}')">Remove</button>
               </td>
             </tr>
           `).join("")}
