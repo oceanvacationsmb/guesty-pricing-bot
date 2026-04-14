@@ -1,139 +1,3 @@
-import express from "express";
-import axios from "axios";
-import fs from "fs";
-import cors from "cors";
-import dotenv from "dotenv";
-dotenv.config();
-
-const app = express();
-app.use(cors());
-app.use(express.json());
-
-const PORT = process.env.PORT || 10000;
-const LIST_FILE = "./listings.json";
-let MANAGED_LISTINGS = [];
-let LISTING_INFO = {};
-
-if(fs.existsSync(LIST_FILE)) {
-  MANAGED_LISTINGS = JSON.parse(fs.readFileSync(LIST_FILE,"utf8"));
-} else {
-  MANAGED_LISTINGS = [];
-  fs.writeFileSync(LIST_FILE, JSON.stringify(MANAGED_LISTINGS));
-}
-
-function saveListings() {
-  fs.writeFileSync(LIST_FILE, JSON.stringify(MANAGED_LISTINGS));
-}
-
-async function getGuestyNickname(listingId) {
-  try {
-    const resp = await axios.get(`https://open-api.guesty.com/v1/listings/${listingId}`, {
-      headers: { Authorization: `Bearer ${process.env.GUESTY_API_TOKEN}` }
-    });
-    LISTING_INFO[listingId] = resp.data.nickname || resp.data.title || listingId;
-    return LISTING_INFO[listingId];
-  } catch {
-    LISTING_INFO[listingId] = listingId;
-    return listingId;
-  }
-}
-
-async function getGuestyDays(listingId, startDate, endDate) {
-  try {
-    const resp = await axios.get(
-      `https://open-api.guesty.com/v1/availability-pricing/api/calendar/listing/${listingId}`,
-      {
-        headers: { Authorization: `Bearer ${process.env.GUESTY_API_TOKEN}` },
-        params: {
-          startDate,
-          endDate,
-          includeBlocks: true,
-          includeReservations: true,
-        }
-      }
-    );
-    return Array.isArray(resp.data.days) ? resp.data.days : [];
-  } catch {
-    return [];
-  }
-}
-
-// API: list, add, remove
-app.get("/api/listings", (req,res) => res.json({listings: MANAGED_LISTINGS}));
-app.post("/api/listings", async (req,res) => {
-  const { id } = req.body;
-  if (!id || typeof id !== "string" || MANAGED_LISTINGS.includes(id))
-    return res.status(400).json({ error: "Invalid or duplicate listing ID" });
-  MANAGED_LISTINGS.push(id);
-  saveListings();
-  await getGuestyNickname(id);
-  res.json({ listings: MANAGED_LISTINGS });
-});
-app.delete("/api/listings/:id", (req,res) => {
-  const { id } = req.params;
-  MANAGED_LISTINGS = MANAGED_LISTINGS.filter(lid => lid !== id);
-  saveListings();
-  res.json({ listings: MANAGED_LISTINGS });
-});
-app.get("/api/nickname/:id", async (req, res) => {
-  const { id } = req.params;
-  const n = await getGuestyNickname(id);
-  res.json({ nickname: n });
-});
-
-// Rate settings skeleton (expand for your needs)
-app.get("/api/settings/:id", (req,res) => {
-  res.json({settings: {minRate: "", maxRate: "", rules: []}});
-});
-
-app.post("/api/settings/:id", (req,res) => {
-  res.json({ok:true});
-});
-
-// Calendar API (for 30 days, with real Guesty data)
-app.post("/calendar-table", async (req,res) => {
-  const { listingIds } = req.body;
-  if (!listingIds||!Array.isArray(listingIds)||!listingIds.length) return res.send("<b>No properties to show.</b>");
-  function pad2(v) {return v.toString().padStart(2,"0");}
-  let start = new Date(), end = new Date(); end.setDate(start.getDate()+29);
-  let dates=[], cursor=new Date(start);
-  while (cursor<=end) {dates.push(cursor.toISOString().slice(0,10)); cursor.setDate(cursor.getDate()+1);}
-  const rows = await Promise.all(listingIds.map(async (listingId) => {
-    let nick = LISTING_INFO[listingId] || await getGuestyNickname(listingId);
-    let days = await getGuestyDays(listingId, dates[0], dates[dates.length-1]);
-    let daymap = {};
-    for (const d of days) daymap[(d.date||d.day||d.calendarDate)] = d;
-    return { listingId, nick, daymap };
-  }));
-  let tableHtml = `<div html="overflow-x:auto;max-width:100%"><div html="max-width:950px;overflow-x:auto">
-  <div>Dates: ${dates[0]} to ${dates[dates.length-1]}</div>
-  <div html="overflow-x:auto">
-  <table style="min-width:1300px"><thead><tr>
-  <th class="sticky-col">Listing</th>
-  ${dates.map(d=>`<th>${d.slice(5)}</th>`).join("")}
-  </tr></thead><tbody>
-  ${rows.map(row=>{
-    return `<tr>
-    <td class="sticky-col"><strong>${row.nick}</strong></td>
-    ${dates.map(dt=>{
-      const day = row.daymap[dt];
-      const orig = (day?.price!=null ? "$"+day.price:"-");
-      const minN = (day?.minNights!=null ? day.minNights : "-");
-      return `<td>
-        <div class="orig-rate">Original: ${orig}</div>
-        <div class="price">Adjusted: -</div>
-        <div class="minstay">Min nights: ${minN}</div>
-      </td>`;
-    }).join("")}
-    </tr>`;
-  }).join("")}
-  </tbody></table></div></div></div>
-  `;
-  res.send(tableHtml);
-});
-
-// --- DASHBOARD UI ---
-
 app.get("/", (req, res) => {
   res.send(`
 <!DOCTYPE html>
@@ -173,8 +37,14 @@ app.get("/", (req, res) => {
     .tab-bar{display:flex;gap:14px;margin-bottom:28px;}
     .tab-btn{background:#181a20;color:#fff;border:none;padding:10px 28px;font-size:17px;border-radius:8px;cursor:pointer;}
     .tab-btn.active, .tab-btn:hover{background:#23242a;}
-    th.sticky-col, td.sticky-col { position: sticky; left: 0; background: #24252b; z-index: 2; }
+    th.sticky-col, td.sticky-col {
+      position: sticky;
+      left: 0;
+      background: #24252b;
+      z-index: 2;
+    }
     th.sticky-col { z-index: 3; }
+    .calendar-outer {overflow-x:auto; max-width:920px; border-radius:12px; background:#23242a;}
   </style>
 </head>
 <body>
@@ -253,7 +123,7 @@ async function showProperties() {
       headers:{"Content-Type":"application/json"},
       body:JSON.stringify({listingIds:state.listings})
     }).then(r=>r.text()).then(h=>{
-      document.getElementById("calendar-hold").innerHTML=h;
+      document.getElementById("calendar-hold").innerHTML = '<div class="calendar-outer">'+h+'</div>';
     });
   }
 }
@@ -281,5 +151,3 @@ renderActiveTab();
 </html>
 `);
 });
-
-app.listen(PORT, ()=>console.log("Running on " + PORT));
