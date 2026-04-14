@@ -62,7 +62,6 @@ function saveData() {
 const persistedData = loadData();
 
 let MANAGED_LISTINGS = persistedData.managedListings;
-
 let LISTING_STRATEGIES = persistedData.listingStrategies || {};
 
 async function getAccessToken() {
