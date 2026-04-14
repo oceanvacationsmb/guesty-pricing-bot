@@ -1,246 +1,164 @@
 import express from "express";
-import axios from "axios";
 import cors from "cors";
-import dotenv from "dotenv";
-dotenv.config();
-
 const app = express();
 app.use(cors());
 app.use(express.json());
 
 const PORT = process.env.PORT || 10000;
-
-/* ================= STATE ================= */
-
 let MANAGED_LISTINGS = [
-  "69db18d8085e450014e2bf65",
-  "69db12c790763a00130d40bc",
-  "69db12bff579c50013548a0d"
+    "69db18d8085e450014e2bf65",
+    "69db12c790763a00130d40bc",
+    "69db12bff579c50013548a0d"
 ];
 
-let LISTINGS_STRATEGY = {};
-let ORIGINAL_RATES = {};
+app.get("/api/listings", (req, res) =>
+    res.json({ listings: MANAGED_LISTINGS })
+);
 
-let cachedToken = null;
-let tokenExpiresAt = null;
-
-/* ================= HELPERS ================= */
-
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-
-function formatDate(date) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
-function addDays(date, days) {
-  const d = new Date(date);
-  d.setDate(d.getDate() + days);
-  return d;
-}
-
-function buildDateRange(days = 14) {
-  const start = new Date();
-  const end = addDays(start, days - 1);
-  return { startDate: formatDate(start), endDate: formatDate(end) };
-}
-
-function parseLocalDate(dateStr) {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  return new Date(y, m - 1, d);
-}
-
-function getDayPrice(day) {
-  return (
-    day.price ??
-    day.basePrice ??
-    day.adjustedPrice ??
-    day.rate ??
-    day.rates?.baseRate
-  );
-}
-
-function getDayMinNights(day) {
-  return day.minNights ?? day.minimumNights;
-}
-
-function getDayStatus(day) {
-  if (day.type === "block") return "BLOCK";
-  if (day.reservationId) return "BOOKED";
-  return "AVAILABLE";
-}
-
-/* ================= AUTH ================= */
-
-async function getAccessToken() {
-  if (cachedToken && Date.now() < tokenExpiresAt) return cachedToken;
-
-  const res = await axios.post(
-    "https://open-api.guesty.com/oauth2/token",
-    new URLSearchParams({
-      grant_type: "client_credentials",
-      scope: "open-api",
-      client_id: process.env.GUESTY_CLIENT_ID,
-      client_secret: process.env.GUESTY_CLIENT_SECRET
-    }),
-    { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
-  );
-
-  cachedToken = res.data.access_token;
-  tokenExpiresAt = Date.now() + (res.data.expires_in - 60) * 1000;
-
-  return cachedToken;
-}
-
-/* ================= GUESTY ================= */
-
-async function guestyGetCalendar(listingId, startDate, endDate, token) {
-  const url = "https://open-api.guesty.com/v1/availability-pricing/api/calendar/listings";
-
-  const res = await axios.get(url, {
-    headers: { Authorization: `Bearer ${token}` },
-    params: {
-      listingIds: listingId,
-      startDate,
-      endDate
-    }
-  });
-
-  return res.data?.days || [];
-}
-
-async function guestyUpdate(listingId, date, patch, token) {
-  const url = `https://open-api.guesty.com/v1/availability-pricing/api/calendar/listing/${listingId}/day/${date}`;
-
-  await axios.patch(url, patch, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-}
-
-/* ================= LOGIC ================= */
-
-async function applyPricing(listingId, days, strategy, token) {
-  if (!ORIGINAL_RATES[listingId]) ORIGINAL_RATES[listingId] = {};
-
-  for (const day of days) {
-    const date = day.date;
-    if (!date) continue;
-
-    if (getDayStatus(day) !== "AVAILABLE") continue;
-
-    if (!ORIGINAL_RATES[listingId][date]) {
-      ORIGINAL_RATES[listingId][date] = getDayPrice(day);
-    }
-
-    let orig = ORIGINAL_RATES[listingId][date];
-    let price = orig;
-
-    const target = parseLocalDate(date);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    let daysAway = Math.ceil((target - today) / 86400000);
-    daysAway = Math.max(daysAway, 0);
-
-    /* ===== DROPS ===== */
-    if (daysAway <= 7 && strategy.drop_0_7) {
-      price *= 1 - strategy.drop_0_7 / 100;
-    } else if (daysAway <= 14 && strategy.drop_8_14) {
-      price *= 1 - strategy.drop_8_14 / 100;
-    }
-
-    /* ===== WEEKEND ===== */
-    const dow = target.getDay();
-
-    if (strategy.weekendPct && (dow === 0 || dow === 6)) {
-      price *= 1 + strategy.weekendPct / 100;
-    }
-
-    if (strategy.weekdayPct && dow !== 0 && dow !== 6) {
-      price *= 1 - strategy.weekdayPct / 100;
-    }
-
-    price = Math.round(price);
-
-    const patch = {};
-
-    if (price !== getDayPrice(day)) patch.price = price;
-
-    if (Object.keys(patch).length) {
-      try {
-        await guestyUpdate(listingId, date, patch, token);
-        day.price = price;
-      } catch (e) {
-        console.log("ERROR:", e.response?.data || e.message);
-      }
-    }
-  }
-}
-
-/* ================= ROUTES ================= */
-
-app.get("/api/listings", (req, res) => {
-  res.json({ listings: MANAGED_LISTINGS });
+app.post("/api/listings", (req, res) => {
+    const { id } = req.body;
+    if (!id || typeof id !== "string" || MANAGED_LISTINGS.includes(id))
+        return res.status(400).json({ error: "Invalid or duplicate listing ID" });
+    MANAGED_LISTINGS.push(id);
+    res.json({ listings: MANAGED_LISTINGS });
 });
 
-/* ================= UI ================= */
+app.delete("/api/listings/:id", (req, res) => {
+    const { id } = req.params;
+    MANAGED_LISTINGS = MANAGED_LISTINGS.filter(lid => lid !== id);
+    res.json({ listings: MANAGED_LISTINGS });
+});
 
 app.get("/", (req, res) => {
-  res.send(`
-  <html>
-  <body style="font-family:Arial;padding:20px">
-
-  <h2>Guesty Pricing Tool</h2>
-
-  <button onclick="load()">Load Calendar</button>
-
-  <div id="out"></div>
-
-  <script>
-    async function load(){
-      const r = await fetch('/run');
-      const t = await r.text();
-      document.getElementById('out').innerHTML = t;
-    }
-  </script>
-
-  </body>
-  </html>
-  `);
-});
-
-/* ================= RUN ================= */
-
-app.get("/run", async (req, res) => {
-  try {
-    const token = await getAccessToken();
-    const { startDate, endDate } = buildDateRange(14);
-
-    let html = "";
-
-    for (const id of MANAGED_LISTINGS) {
-      const days = await guestyGetCalendar(id, startDate, endDate, token);
-
-      const strategy = LISTINGS_STRATEGY[id] || {
-        weekendPct: 10,
-        drop_0_7: 20
-      };
-
-      await applyPricing(id, days, strategy, token);
-
-      html += `<h3>${id}</h3>`;
-      html += `<pre>${JSON.stringify(days.slice(0,5), null, 2)}</pre>`;
-    }
-
-    res.send(html);
-
-  } catch (e) {
-    res.send(e.response?.data || e.message);
+    res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Rental Dashboard</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', Arial, sans-serif; margin:0; background: #191a1d; color: #fff; }
+    .layout { display: flex; min-height: 100vh; }
+    nav#sidebar { background: #181a20; color:#fff; width: 225px; min-height: 100vh; padding-top: 36px; display: flex; flex-direction:column; align-items:center;}
+    nav#sidebar h1 { font-size: 24px; font-weight:700; margin-bottom: 40px; }
+    .nav-section { width:100%; }
+    .nav-link { display:block; width:100%; color:#fff; text-decoration:none; padding:14px 34px; font-size:17px;
+      border-left:5px solid transparent; transition: background 0.12s, border 0.12s; box-sizing:border-box;}
+    .nav-link.active, .nav-link:hover { background: #23242a; border-color: #f90; }
+    #main { flex:1; }
+    .panel{background:#24252b; margin:44px auto; max-width:1050px; border-radius:14px; box-shadow:0 4px 18px #0004; padding:36px 32px;}
+    h2 { font-size: 1.5rem; margin: 0 0 18px;}
+    .input-row{display:flex;gap:10px;margin-bottom:18px;}
+    input[type=text]{font-size:17px;padding:7px 12px;border:1.5px solid #444;border-radius:6px;background:#23242a;color:#fff;}
+    button{background:#181a20;border:none;color:#fff;font-size:17px;font-weight:500;padding:7px 18px;border-radius:6px;cursor:pointer;}
+    button.danger{background:#a32525;}
+    .listing-list{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:18px;}
+    .listing-pill{background:#23242a;border:1px solid #444;border-radius:8px;padding:8px 14px;display:flex;align-items:center;gap:10px;}
+    #calendar-hold{margin-top:28px;}
+    table{border-collapse:collapse;width:100%;background:#23242a;}
+    th,td{border:1px solid #333;padding:8px 4px;text-align:center;}
+    th{background:#23242a;font-weight:600;}
+    .stat-block{background:#333;color:#a0a0a0;}
+    .stat-booked{background:#f90;color:#23242a;}
+    .orig-rate{color:#888;font-size:13px;}
+    .minstay{font-size:13px;color:#ccd0d4;}
+  </style>
+</head>
+<body>
+<div class="layout">
+  <nav id="sidebar">
+    <h1>Rental Dashboard</h1>
+    <div class="nav-section">
+      <a href="#" class="nav-link active" id="side-properties">PROPERTIES</a>
+    </div>
+  </nav>
+  <div id="main"></div>
+</div>
+<script>
+let state = {
+  listings: [],
+  listingsMap: {},
+  selectedTab: "properties"
+};
+async function fetchListings() {
+  const r = await fetch('/api/listings');
+  const j = await r.json();
+  state.listings = j.listings;
+  for (let id of state.listings) {
+    if (!state.listingsMap[id]) state.listingsMap[id]={id,title:id};
   }
+}
+async function addListing(id) {
+  await fetch('/api/listings', {method:'POST', headers:{"Content-Type":"application/json"}, body:JSON.stringify({id})});
+}
+async function delListing(id) {
+  await fetch('/api/listings/'+encodeURIComponent(id), {method:'DELETE'});
+}
+function showProperties() {
+  setSidebarActive("properties");
+  let html = '<div class="panel"><h2>Properties</h2>';
+  html += \`<form id="add-form" class="input-row">
+    <input id="add-id" type="text" placeholder="Add new listing ID" required>
+    <button type="submit">Add</button>
+  </form>\`;
+  if (!state.listings.length) {
+    html += "<i>No listings.</i>";
+  } else {
+    html += '<div class="listing-list">';
+    html += state.listings.map(id =>
+      \`<span class="listing-pill">
+        \${state.listingsMap[id]?.title||id}
+        <button type="button" class="danger btnDel" data-id="\${id}">×</button>
+      </span>\`
+    ).join("");
+    html += "</div>";
+  }
+  html += \`<div class="calendar-container" id="calendar-hold"></div></div>\`;
+  document.getElementById("main").innerHTML = html;
+
+  document.getElementById("add-form").onsubmit = async (e) => {
+    e.preventDefault();
+    const v = document.getElementById("add-id").value.trim();
+    if (v) {await addListing(v);await renderActiveTab();}
+  };
+  document.querySelectorAll('.btnDel').forEach(btn=>{
+    btn.onclick = async ()=>{await delListing(btn.dataset.id);await renderActiveTab();}
+  });
+
+  if (state.listings.length) {
+    renderCalendar(state.listings);
+  }
+}
+function setSidebarActive(tab) {
+  document.getElementById("side-properties").classList.toggle("active", tab==="properties");
+}
+async function renderActiveTab() {
+  await fetchListings();
+  showProperties();
+}
+document.getElementById("side-properties").onclick=e=>{
+  state.selectedTab="properties";renderActiveTab();
+};
+renderActiveTab();
+
+function renderCalendar(listingIds) {
+  let start = new Date(), end = new Date(); end.setDate(start.getDate()+13);
+  function formatDate(d){return d.toISOString().split("T")[0];}
+  let dates=[],cursor=new Date(start);
+  while (cursor<=end) { dates.push(formatDate(cursor)); cursor.setDate(cursor.getDate()+1);}
+  let tableHtml = '<div>Dates: '+formatDate(start)+' to '+formatDate(end)+'</div>';
+  tableHtml += '<table><thead><tr><th>Listing</th>';
+  tableHtml += dates.map(d=>'<th>'+d.slice(5)+'</th>').join("")+"</tr></thead><tbody>";
+  tableHtml += listingIds.map(listingId=>'<tr><td><div><strong>'+listingId+'</strong></div></td>'
+    +dates.map(date=>'<td><div class="orig-rate">Original: -</div><div class="price">Adjusted: -</div><div class="minstay">Min nights: -</div></td>').join("")
+    +'</tr>').join("");
+  tableHtml += '</tbody></table>';
+  document.getElementById("calendar-hold").innerHTML = tableHtml;
+}
+</script>
+</body>
+</html>`);
 });
 
-/* ================= START ================= */
-
-app.listen(PORT, () => console.log("RUNNING " + PORT));
+app.listen(PORT, ()=>console.log("Running on "+PORT));
