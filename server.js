@@ -46,49 +46,28 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// Robust GET with retry/backoff for 429 errors
-async function guestyApiGet(url, config = {}, retries = 5) {
-  for (let i = 0; i < retries; i++) {
-    try {
-      return await axios.get(url, config);
-    } catch (e) {
-      if (e.response && e.response.status === 429) {
-        const retryAfter = e.response.headers['retry-after'];
-        const wait = retryAfter ? parseInt(retryAfter, 10) * 1000 : 60000;
-        console.log(`Rate limited. Waiting ${wait / 1000}s before retrying...`);
-        await sleep(wait);
-      } else {
-        throw e;
-      }
-    }
-  }
-  throw new Error("Too many retries due to rate limiting.");
-}
-
 async function guestyGetListingInfo(listingId, token) {
   const url = `https://open-api.guesty.com/v1/listings/${listingId}`;
-  const res = await guestyApiGet(url, {
+  const res = await axios.get(url, {
     headers: { Authorization: `Bearer ${token}` }
   });
   return res.data;
 }
 
-async function guestyGetCalendar(listingId, startDate, endDate, token) {
-  const url = `https://open-api.guesty.com/v1/availability-pricing/api/calendar/listings/${listingId}`;
-  const res = await guestyApiGet(url, {
+async function guestyGetBatchCalendar(listingIds, startDate, endDate, token) {
+  const url = `https://open-api.guesty.com/v1/availability-pricing/api/calendar/listings`;
+  const params = {
+    listingIds: listingIds.join(','),
+    startDate,
+    endDate,
+    ignoreInactiveChildAllotment: "true",
+    useChildValues: "true"
+  };
+  const res = await axios.get(url, {
     headers: { Authorization: `Bearer ${token}` },
-    params: { startDate, endDate }
+    params
   });
-
-  const calendar = res.data.calendar || res.data.results || res.data;
-  const dayMap = {};
-  for (const day of calendar) {
-    dayMap[day.date] = {
-      price: day.price,
-      minNights: day.minNights || day.minStay || day.minimumNights
-    };
-  }
-  return dayMap;
+  return res.data;
 }
 
 function formatDate(date) {
@@ -129,7 +108,7 @@ app.get("/calendar", async (req, res) => {
       cursor = addDays(cursor, 1);
     }
 
-    // Fetch listing info and calendar data for each listing, one at a time
+    // Fetch listing info for titles
     const listingsData = [];
     for (const listingId of TEST_LISTINGS) {
       let title = listingId;
@@ -139,14 +118,25 @@ app.get("/calendar", async (req, res) => {
       } catch (e) {
         // fallback to ID if error
       }
-      let calendar = {};
-      try {
-        calendar = await guestyGetCalendar(listingId, startDate, endDate, token);
-      } catch (e) {
-        // leave calendar empty if error
-      }
-      listingsData.push({ id: listingId, title, calendar });
-      await sleep(30000); // 30 seconds between requests
+      listingsData.push({ id: listingId, title });
+      await sleep(500); // Small delay to avoid burst
+    }
+
+    // Fetch batch calendar data
+    const calendarData = await guestyGetBatchCalendar(TEST_LISTINGS, startDate, endDate, token);
+
+    // Log the raw response for debugging
+    console.log("Batch calendar API response:", JSON.stringify(calendarData, null, 2));
+
+    // Map: ratesMap[listingId][date] = { price, minNights }
+    const ratesMap = {};
+    const days = (calendarData.data && calendarData.data.days) || calendarData.days || [];
+    for (const day of days) {
+      if (!ratesMap[day.listingId]) ratesMap[day.listingId] = {};
+      ratesMap[day.listingId][day.date] = {
+        price: day.price,
+        minNights: day.minNights || day.minStay || day.minimumNights
+      };
     }
 
     // Build HTML table
@@ -187,7 +177,7 @@ app.get("/calendar", async (req, res) => {
                   <div>${listing.id}</div>
                 </td>
                 ${dates.map(date => {
-                  const cell = listing.calendar[date] || {};
+                  const cell = (ratesMap[listing.id] && ratesMap[listing.id][date]) || {};
                   return `
                     <td>
                       <div class="price">${cell.price !== undefined ? `$${cell.price}` : "-"}</div>
