@@ -81,9 +81,9 @@ function addDays(date, days) {
   return d;
 }
 
-function buildDateRange(days = 30) {
+function buildDateRange(days = 14) {
   const start = new Date();
-  const end = addDays(start, days - 30);
+  const end = addDays(start, days - 1);
   return {
     startDate: formatDate(start),
     endDate: formatDate(end)
