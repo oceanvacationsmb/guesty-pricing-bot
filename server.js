@@ -50,12 +50,36 @@ async function getAccessToken() {
   return cachedToken;
 }
 
+async function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function guestyGetWithRetry(url, config = {}, retries = 5) {
+  for (let i = 0; i <= retries; i++) {
+    try {
+      return await axios.get(url, config);
+    } catch (e) {
+      if (i === retries) throw e;
+
+      let wait = 2000 * (i + 1);
+      if (e.response && e.response.status === 429) {
+        const retryAfter = e.response.headers['retry-after'];
+        if (retryAfter) {
+          wait = parseInt(retryAfter, 10) * 1000;
+        }
+      }
+      console.log("RATE LIMITED - WAIT", wait);
+      await sleep(wait);
+    }
+  }
+}
+
 async function getListingsInfo(token) {
   const out = [];
 
   for (const id of TEST_LISTINGS) {
     try {
-      const res = await axios.get(
+      const res = await guestyGetWithRetry(
         `https://open-api.guesty.com/v1/listings/${id}`,
         {
           headers: {
@@ -81,35 +105,14 @@ async function getListingsInfo(token) {
   return out;
 }
 
-async function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-async function guestyGetWithRetry(url, config = {}, retries = 5) {
-  for (let i = 0; i <= retries; i++) {
-    try {
-      return await axios.get(url, config);
-    } catch (e) {
-      if (i === retries) throw e;
-
-      const wait = 2000 * (i + 1);
-      console.log("RATE LIMITED - WAIT", wait);
-      await sleep(wait);
-    }
-  }
-}
-
-
-
 async function getMultiCalendar(token, startDate, endDate) {
   const results = [];
 
   for (const listingId of TEST_LISTINGS) {
-
     console.log("FETCHING:", listingId);
 
     try {
-      const res = await axios.get(
+      const res = await guestyGetWithRetry(
         `https://open-api.guesty.com/v1/availability-pricing/api/calendar/listings/${listingId}`,
         {
           headers: {
@@ -132,13 +135,12 @@ async function getMultiCalendar(token, startDate, endDate) {
       console.log("ERROR LISTING:", listingId, e.response?.data || e.message);
     }
 
-    await sleep(3000);
+    await sleep(3000); // Increase if you still get rate limited
   }
 
   console.log("CALENDAR RAW:", JSON.stringify(results, null, 2));
 
   return results;
-}
 }
 
 function formatDate(date) {
