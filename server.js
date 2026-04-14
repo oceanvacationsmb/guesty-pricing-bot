@@ -2,6 +2,8 @@ import express from "express";
 import axios from "axios";
 import cors from "cors";
 import dotenv from "dotenv";
+import fs from "fs";
+import path from "path";
 dotenv.config();
 
 const app = express();
@@ -10,20 +12,59 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 const PORT = process.env.PORT || 10000;
+const DATA_FILE = path.join(process.cwd(), "data.json");
 
-let MANAGED_LISTINGS = [
+const DEFAULT_LISTINGS = [
   "69db18d8085e450014e2bf65",
   "69db12c790763a00130d40bc",
   "69db12bff579c50013548a0d",
   "69db0826f579c50013546169"
 ];
 
+function loadData() {
+  try {
+    if (fs.existsSync(DATA_FILE)) {
+      const raw = fs.readFileSync(DATA_FILE, "utf8");
+      const parsed = JSON.parse(raw || "{}");
+      return {
+        managedListings: Array.isArray(parsed.managedListings) ? parsed.managedListings : DEFAULT_LISTINGS,
+        listingStrategies: parsed.listingStrategies || {}
+      };
+    }
+  } catch (e) {
+    console.log("DATA LOAD ERROR:", e.message);
+  }
+
+  return {
+    managedListings: DEFAULT_LISTINGS,
+    listingStrategies: {}
+  };
+}
+
+function saveData() {
+  try {
+    fs.writeFileSync(
+      DATA_FILE,
+      JSON.stringify(
+        {
+          managedListings: MANAGED_LISTINGS,
+          listingStrategies: LISTING_STRATEGIES
+        },
+        null,
+        2
+      )
+    );
+  } catch (e) {
+    console.log("DATA SAVE ERROR:", e.message);
+  }
+}
+
+const persistedData = loadData();
+
+let MANAGED_LISTINGS = persistedData.managedListings;
+
 let LISTING_STRATEGIES = {
-  "69db18d8085e450014e2bf65": createDefaultStrategy(),
-  "69db12c790763a00130d40bc": createDefaultStrategy(),
-  "69db12bff579c50013548a0d": createDefaultStrategy(),
-  "69db0826f579c50013546169": createDefaultStrategy()
-};
+  "69db18d8085e450014e2bf65": createDlet LISTING_STRATEGIES = persistedData.listingStrategies || {};
 
 let cachedToken = null;
 let tokenExpiresAt = null;
@@ -727,7 +768,8 @@ app.get("/api/listings", (req, res) => {
   res.json({ listings: MANAGED_LISTINGS });
 });
 
-app.post("/api/listings", (req, res) => {
+MANAGED_LISTINGS.push(id);
+saveData();
   const { id } = req.body;
   if (!id || typeof id !== "string" || MANAGED_LISTINGS.includes(id)) {
     return res.status(400).json({ error: "Invalid or duplicate listing ID" });
@@ -743,6 +785,7 @@ app.delete("/api/listings/:id", (req, res) => {
   const { id } = req.params;
   MANAGED_LISTINGS = MANAGED_LISTINGS.filter(lid => lid !== id);
   delete LISTING_STRATEGIES[id];
+  saveData();
   res.json({ listings: MANAGED_LISTINGS });
 });
 
@@ -759,6 +802,7 @@ app.post("/api/strategy/:id", (req, res) => {
 
   const strategy = normalizeStrategy(req.body);
   LISTING_STRATEGIES[id] = strategy;
+  saveData();
 
   console.log("SAVED STRATEGY:", id, strategy);
 
