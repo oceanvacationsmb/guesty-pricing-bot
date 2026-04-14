@@ -238,19 +238,12 @@ function normalizeRule(rule) {
 function normalizeStrategy(input = {}) {
   return {
     enabled: input.enabled === true || input.enabled === "true" || input.enabled === "on",
-    pct: toNumberOrNull(input.pct) ?? 0,
-    min: toNumberOrNull(input.min) ?? 0,
-    max: toNumberOrNull(input.max) ?? 0,
-    minNights: toNumberOrNull(input.minNights) ?? 1,
-    maxNights: toNumberOrNull(input.maxNights) ?? 30,
-    weekdayPct: toNumberOrNull(input.weekdayPct) ?? 0,
-    weekendPct: toNumberOrNull(input.weekendPct) ?? 0,
-    seasonalRules: Array.isArray(input.seasonalRules)
-      ? input.seasonalRules.map(normalizeRule)
-      : createDefaultStrategy().seasonalRules,
-    eventRules: Array.isArray(input.eventRules)
-      ? input.eventRules.map(normalizeRule)
-      : createDefaultStrategy().eventRules
+    min: toNumberOrNull(input.min) ?? 100,
+    drop0to7: toNumberOrNull(input.drop0to7) ?? 0,
+    drop8to13: toNumberOrNull(input.drop8to13) ?? 0,
+    drop14to21: toNumberOrNull(input.drop14to21) ?? 0,
+    drop22to30: toNumberOrNull(input.drop22to30) ?? 0,
+    gapNights: toNumberOrNull(input.gapNights) ?? 2
   };
 }
 
@@ -464,13 +457,13 @@ function pageTemplate(title, activePage, content, extraScripts = "") {
         .grid-3 {
           grid-template-columns:repeat(3, minmax(0, 1fr));
         }
-        .card {
-          background:linear-gradient(180deg, rgba(18,26,43,.98), rgba(18,26,43,.92));
-          border:1px solid var(--line);
-          border-radius:var(--radius);
-          padding:20px;
-          box-shadow:var(--shadow);
-        }
+       .card {
+  background:#ffffff;
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  padding:20px;
+  box-shadow:0 8px 24px rgba(15, 23, 42, 0.06);
+}
         .card-title {
           font-size:18px;
           font-weight:800;
@@ -649,13 +642,13 @@ function pageTemplate(title, activePage, content, extraScripts = "") {
           color:var(--muted);
           font-size:12px;
         }
-        .strategy-box {
-          background:rgba(255,255,255,.02);
-          border:1px solid var(--line);
-          border-radius:16px;
-          padding:16px;
-          margin-top:14px;
-        }
+       .strategy-box {
+  background:#f8fbff;
+  border:1px solid var(--line);
+  border-radius:16px;
+  padding:16px;
+  margin-top:14px;
+}
         .toggle {
           display:flex;
           align-items:center;
@@ -948,127 +941,59 @@ app.get("/settings", async (req, res) => {
           </div>
 
           <div class="strategy-box">
-            <div class="card-subtitle">Base Pricing Settings</div>
-            <div class="field-grid">
-              <div class="field">
-                <label>Default %</label>
-                <input type="number" step="1" name="pct" value="${strategy.pct}" />
-              </div>
-              <div class="field">
-                <label>Min Price</label>
-                <input type="number" step="1" name="min" value="${strategy.min}" />
-              </div>
-              <div class="field">
-                <label>Max Price</label>
-                <input type="number" step="1" name="max" value="${strategy.max}" />
-              </div>
-              <div class="field">
-                <label>Weekday %</label>
-                <input type="number" step="1" name="weekdayPct" value="${strategy.weekdayPct}" />
-              </div>
-              <div class="field">
-                <label>Weekend %</label>
-                <input type="number" step="1" name="weekendPct" value="${strategy.weekendPct}" />
-              </div>
-              <div class="field">
-                <label>Min Nights</label>
-                <input type="number" step="1" name="minNights" value="${strategy.minNights}" />
-              </div>
-              <div class="field">
-                <label>Max Nights</label>
-                <input type="number" step="1" name="maxNights" value="${strategy.maxNights}" />
-              </div>
-            </div>
+          ${listingsData.map(listing => {
+  const strategy = LISTING_STRATEGIES[listing.id] || createDefaultStrategy();
+
+  return `
+    <form class="card strategy-form" data-id="${listing.id}" style="margin-bottom:20px;">
+      <div class="row" style="justify-content:space-between;">
+        <div>
+          <div class="card-title">${listing.title}</div>
+        </div>
+      </div>
+
+      <div class="strategy-box">
+        <div class="card-subtitle">Simple discount rules by days before arrival</div>
+
+        <div class="field-grid">
+          <div class="field">
+            <label>Min Nightly Rate</label>
+            <input type="number" name="min" value="${strategy.min}" />
           </div>
 
-          <div class="strategy-box">
-            <div class="card-subtitle">Seasonal Rules</div>
-            ${(strategy.seasonalRules || []).map((rule, idx) => `
-              <div class="field-grid" style="margin-bottom:12px;">
-                <div class="field">
-                  <label>Name</label>
-                  <input name="seasonalRules[${idx}][name]" value="${rule.name || ""}" />
-                </div>
-                <div class="field">
-                  <label>Start Date</label>
-                  <input type="date" name="seasonalRules[${idx}][startDate]" value="${rule.startDate || ""}" />
-                </div>
-                <div class="field">
-                  <label>End Date</label>
-                  <input type="date" name="seasonalRules[${idx}][endDate]" value="${rule.endDate || ""}" />
-                </div>
-                <div class="field">
-                  <label>%</label>
-                  <input type="number" name="seasonalRules[${idx}][pct]" value="${rule.pct || 0}" />
-                </div>
-                <div class="field">
-                  <label>Min</label>
-                  <input type="number" name="seasonalRules[${idx}][min]" value="${rule.min ?? ""}" />
-                </div>
-                <div class="field">
-                  <label>Max</label>
-                  <input type="number" name="seasonalRules[${idx}][max]" value="${rule.max ?? ""}" />
-                </div>
-                <div class="field">
-                  <label>Min Nights</label>
-                  <input type="number" name="seasonalRules[${idx}][minNights]" value="${rule.minNights ?? ""}" />
-                </div>
-                <div class="field">
-                  <label>Max Nights</label>
-                  <input type="number" name="seasonalRules[${idx}][maxNights]" value="${rule.maxNights ?? ""}" />
-                </div>
-              </div>
-            `).join("")}
+          <div class="field">
+            <label>0–7 Days (%)</label>
+            <input type="number" name="drop0to7" value="${strategy.drop0to7 || 0}" />
           </div>
 
-          <div class="strategy-box">
-            <div class="card-subtitle">Event Rules</div>
-            ${(strategy.eventRules || []).map((rule, idx) => `
-              <div class="field-grid" style="margin-bottom:12px;">
-                <div class="field">
-                  <label>Name</label>
-                  <input name="eventRules[${idx}][name]" value="${rule.name || ""}" />
-                </div>
-                <div class="field">
-                  <label>Start Date</label>
-                  <input type="date" name="eventRules[${idx}][startDate]" value="${rule.startDate || ""}" />
-                </div>
-                <div class="field">
-                  <label>End Date</label>
-                  <input type="date" name="eventRules[${idx}][endDate]" value="${rule.endDate || ""}" />
-                </div>
-                <div class="field">
-                  <label>%</label>
-                  <input type="number" name="eventRules[${idx}][pct]" value="${rule.pct || 0}" />
-                </div>
-                <div class="field">
-                  <label>Min</label>
-                  <input type="number" name="eventRules[${idx}][min]" value="${rule.min ?? ""}" />
-                </div>
-                <div class="field">
-                  <label>Max</label>
-                  <input type="number" name="eventRules[${idx}][max]" value="${rule.max ?? ""}" />
-                </div>
-                <div class="field">
-                  <label>Min Nights</label>
-                  <input type="number" name="eventRules[${idx}][minNights]" value="${rule.minNights ?? ""}" />
-                </div>
-                <div class="field">
-                  <label>Max Nights</label>
-                  <input type="number" name="eventRules[${idx}][maxNights]" value="${rule.maxNights ?? ""}" />
-                </div>
-              </div>
-            `).join("")}
+          <div class="field">
+            <label>8–14 Days (%)</label>
+            <input type="number" name="drop8to13" value="${strategy.drop8to13 || 0}" />
           </div>
 
-          <div class="row" style="margin-top:16px;">
-            <button class="btn btn-primary" type="submit">Save Settings</button>
-            <span class="small-text">Changes affect preview only right now.</span>
+          <div class="field">
+            <label>15–21 Days (%)</label>
+            <input type="number" name="drop14to21" value="${strategy.drop14to21 || 0}" />
           </div>
-        </form>
-      `;
-    }).join("")}
+
+          <div class="field">
+            <label>22–30 Days (%)</label>
+            <input type="number" name="drop22to30" value="${strategy.drop22to30 || 0}" />
+          </div>
+
+          <div class="field">
+            <label>Gap Nights (Min Stay)</label>
+            <input type="number" name="gapNights" value="${strategy.gapNights || 2}" />
+          </div>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:16px;">
+        <button class="btn btn-primary" type="submit">Save Settings</button>
+      </div>
+    </form>
   `;
+}).join("")}
 
   const scripts = `
     <script>
