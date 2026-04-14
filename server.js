@@ -31,22 +31,11 @@ let tokenExpiresAt = null;
 function createDefaultStrategy() {
   return {
     enabled: true,
-    pct: -20,
-    min: 100,
-    max: 10000,
-    minNights: 1,
-    maxNights: 30,
-    weekdayPct: 0,
-    weekendPct: 0,
-    seasonalRules: [
-      { name: "Summer", startDate: "", endDate: "", pct: 0, min: "", max: "", minNights: "", maxNights: "" },
-      { name: "Fall", startDate: "", endDate: "", pct: 0, min: "", max: "", minNights: "", maxNights: "" },
-      { name: "Winter", startDate: "", endDate: "", pct: 0, min: "", max: "", minNights: "", maxNights: "" }
-    ],
-    eventRules: [
-      { name: "Event 1", startDate: "", endDate: "", pct: 0, min: "", max: "", minNights: "", maxNights: "" },
-      { name: "Event 2", startDate: "", endDate: "", pct: 0, min: "", max: "", minNights: "", maxNights: "" }
-    ]
+    min: 100, // floor price AFTER discounts
+    drop0to7: 0,   // %
+    drop8to14: 0,  // %
+    drop15to21: 0, // %
+    drop22to30: 0  // %
   };
 }
 
