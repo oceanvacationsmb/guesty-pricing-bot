@@ -13,7 +13,8 @@ const TEST_LISTINGS = [
   "69db18d8085e450014e2bf65",
   "69db12c790763a00130d40bc",
   "69db12bff579c50013548a0d",
-  "69db0826f579c50013546169"
+  "69db0826f579c50013546169",
+  "69db18d8085e450014e2bf65"
 ];
 
 let cachedToken = null;
@@ -80,9 +81,9 @@ function addDays(date, days) {
   return d;
 }
 
-function buildDateRange(days = 3) {
+function buildDateRange(days = 30) {
   const start = new Date();
-  const end = addDays(start, days - 1);
+  const end = addDays(start, days - 30);
   return {
     startDate: formatDate(start),
     endDate: formatDate(end)
