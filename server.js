@@ -102,7 +102,7 @@ function addDays(date, days) {
   return d;
 }
 
-function buildDateRange(days = 3) {
+function buildDateRange(days = 14) {
   const start = new Date();
   const end = addDays(start, days - 1);
   return {
