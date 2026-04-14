@@ -28,6 +28,7 @@ app.post("/api/listings", (req, res) => {
     if (!id || typeof id !== "string" || MANAGED_LISTINGS.includes(id))
         return res.status(400).json({ error: "Invalid or duplicate listing ID" });
     MANAGED_LISTINGS.push(id);
+  fs.writeFileSync(LIST_FILE, JSON.stringify(MANAGED_LISTINGS));
     res.json({ listings: MANAGED_LISTINGS });
 });
 
