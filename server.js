@@ -170,6 +170,14 @@ function getDayMinNights(day) {
   );
 }
 
+function getDayStatus(day) {
+  if (day.status !== undefined && day.status !== null) return day.status;
+  if (day.available !== undefined && day.available !== null) return day.available;
+  if (day.isAvailable !== undefined && day.isAvailable !== null) return day.isAvailable;
+  if (day.reserved !== undefined && day.reserved !== null) return !day.reserved;
+  return null;
+}
+
 function isWeekend(dateStr) {
   const day = new Date(dateStr).getDay();
   return day === 5 || day === 6;
