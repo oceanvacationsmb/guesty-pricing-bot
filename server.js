@@ -92,16 +92,16 @@ function saveData() {
     fs.writeFileSync(
       DATA_FILE,
       JSON.stringify(
-        {
-  managedListings: MANAGED_LISTINGS,
-  listingStrategies: LISTING_STRATEGIES,
-  rateBaselines: RATE_BASELINES,
-  globalSyncEnabled: GLOBAL_SYNC_ENABLED,
-  propertySyncEnabled: PROPERTY_SYNC_ENABLED
-}
-        null,
-        2
-      )
+  {
+    managedListings: MANAGED_LISTINGS,
+    listingStrategies: LISTING_STRATEGIES,
+    rateBaselines: RATE_BASELINES,
+    globalSyncEnabled: GLOBAL_SYNC_ENABLED,
+    propertySyncEnabled: PROPERTY_SYNC_ENABLED
+  },
+  null,
+  2
+)
     );
   } catch (e) {
     console.log("DATA SAVE ERROR:", e.message);
