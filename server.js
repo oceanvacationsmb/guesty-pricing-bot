@@ -21,13 +21,27 @@ const DEFAULT_LISTINGS = [
   "69db0826f579c50013546169"
 ];
 
+function createDefaultStrategy() {
+  return {
+    enabled: true,
+    min: 100,
+    drop0to7: 0,
+    drop8to13: 0,
+    drop14to21: 0,
+    drop22to30: 0,
+    gapNights: 2
+  };
+}
+
 function loadData() {
   try {
     if (fs.existsSync(DATA_FILE)) {
       const raw = fs.readFileSync(DATA_FILE, "utf8");
       const parsed = JSON.parse(raw || "{}");
       return {
-        managedListings: Array.isArray(parsed.managedListings) ? parsed.managedListings : DEFAULT_LISTINGS,
+        managedListings: Array.isArray(parsed.managedListings)
+          ? parsed.managedListings
+          : DEFAULT_LISTINGS,
         listingStrategies: parsed.listingStrategies || {}
       };
     }
@@ -41,6 +55,16 @@ function loadData() {
   };
 }
 
+const persistedData = loadData();
+
+let MANAGED_LISTINGS = persistedData.managedListings;
+let LISTING_STRATEGIES = persistedData.listingStrategies || {};
+
+for (const id of MANAGED_LISTINGS) {
+  if (!LISTING_STRATEGIES[id]) {
+    LISTING_STRATEGIES[id] = createDefaultStrategy();
+  }
+}
 
 function saveData() {
   try {
@@ -60,24 +84,8 @@ function saveData() {
   }
 }
 
-const persistedData = loadData();
-
-let MANAGED_LISTINGS = persistedData.managedListings;
-let LISTING_STRATEGIES = persistedData.listingStrategies || {};
 let cachedToken = null;
 let tokenExpiresAt = 0;
-
-function createDefaultStrategy() {
-  return {
-    enabled: true,
-    min: 100,
-    drop0to7: 0,
-    drop8to13: 0,
-    drop14to21: 0,
-    drop22to30: 0,
-    gapNights: 2
-  };
-}
 
 async function getAccessToken() {
   if (cachedToken && Date.now() < tokenExpiresAt) return cachedToken;
@@ -119,6 +127,7 @@ async function guestyApiGet(url, config = {}, retries = 5) {
       throw e;
     }
   }
+
   throw new Error("Too many retries due to rate limiting.");
 }
 
@@ -157,7 +166,7 @@ function addDays(date, days) {
   return d;
 }
 
-function buildDateRange(days = 14) {
+function buildDateRange(days = 30) {
   const start = new Date();
   const end = addDays(start, days - 1);
   return {
@@ -207,33 +216,10 @@ function getDayStatus(day) {
   return null;
 }
 
-function isWeekend(dateStr) {
-  const day = new Date(dateStr).getDay();
-  return day === 5 || day === 6;
-}
-
-function inRange(dateStr, rule) {
-  if (!rule?.startDate || !rule?.endDate) return false;
-  return dateStr >= rule.startDate && dateStr <= rule.endDate;
-}
-
 function toNumberOrNull(value) {
   if (value === "" || value === null || value === undefined) return null;
   const num = Number(value);
   return Number.isNaN(num) ? null : num;
-}
-
-function normalizeRule(rule) {
-  return {
-    name: rule?.name || "",
-    startDate: rule?.startDate || "",
-    endDate: rule?.endDate || "",
-    pct: toNumberOrNull(rule?.pct) ?? 0,
-    min: toNumberOrNull(rule?.min),
-    max: toNumberOrNull(rule?.max),
-    minNights: toNumberOrNull(rule?.minNights),
-    maxNights: toNumberOrNull(rule?.maxNights)
-  };
 }
 
 function normalizeStrategy(input = {}) {
@@ -248,76 +234,34 @@ function normalizeStrategy(input = {}) {
   };
 }
 
-function getAppliedRule(strategy, dateStr) {
-  if (!strategy?.enabled) {
-    return { label: "Disabled", pct: 0, min: strategy?.min, max: strategy?.max, minNights: strategy?.minNights, maxNights: strategy?.maxNights };
-  }
-
-  for (const rule of strategy.eventRules || []) {
-    if (inRange(dateStr, rule)) {
-      return { label: `Event: ${rule.name || "Custom Event"}`, ...rule };
-    }
-  }
-
-  for (const rule of strategy.seasonalRules || []) {
-    if (inRange(dateStr, rule)) {
-      return { label: `Season: ${rule.name || "Season"}`, ...rule };
-    }
-  }
-
-  if (isWeekend(dateStr) && strategy.weekendPct) {
-    return {
-      label: "Weekend",
-      pct: strategy.weekendPct,
-      min: strategy.min,
-      max: strategy.max,
-      minNights: strategy.minNights,
-      maxNights: strategy.maxNights
-    };
-  }
-
-  if (!isWeekend(dateStr) && strategy.weekdayPct) {
-    return {
-      label: "Weekday",
-      pct: strategy.weekdayPct,
-      min: strategy.min,
-      max: strategy.max,
-      minNights: strategy.minNights,
-      maxNights: strategy.maxNights
-    };
-  }
-
-  return {
-    label: "Default",
-    pct: strategy.pct,
-    min: strategy.min,
-    max: strategy.max,
-    minNights: strategy.minNights,
-    maxNights: strategy.maxNights
-  };
-}
-
 function applyStrategy(price, strategy, dateStr) {
   if (!strategy || !strategy.enabled || price === null || price === undefined) {
     return {
       newPrice: price,
       ruleLabel: "Disabled",
       appliedPct: 0,
-      minNights: strategy?.gapNights ?? null
+      minNights: strategy?.gapNights ?? null,
+      isFinal: false
     };
   }
 
   const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
   const target = new Date(dateStr);
+  target.setHours(0, 0, 0, 0);
+
   const diffTime = target.getTime() - today.getTime();
   const daysBefore = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
   let appliedPct = 0;
   let ruleLabel = "No Drop";
+  let isFinal = false;
 
   if (daysBefore >= 0 && daysBefore <= 7) {
     appliedPct = Number(strategy.drop0to7 || 0);
     ruleLabel = "0-7 Days";
+    isFinal = true;
   } else if (daysBefore >= 8 && daysBefore <= 14) {
     appliedPct = Number(strategy.drop8to13 || 0);
     ruleLabel = "8-14 Days";
@@ -339,7 +283,8 @@ function applyStrategy(price, strategy, dateStr) {
     newPrice: Math.round(newPrice),
     ruleLabel,
     appliedPct,
-    minNights: Number(strategy.gapNights || 0)
+    minNights: Number(strategy.gapNights || 0),
+    isFinal
   };
 }
 
@@ -353,36 +298,36 @@ function pageTemplate(title, activePage, content, extraScripts = "") {
       <title>${title}</title>
       <style>
         :root{
-  --bg:#f5f7fb;
-  --panel:#ffffff;
-  --panel-2:#f8fafc;
-  --line:#dbe3ef;
-  --text:#1f2937;
-  --muted:#6b7280;
+          --bg:#f5f7fb;
+          --panel:#ffffff;
+          --panel-2:#f8fafc;
+          --line:#dbe3ef;
+          --text:#1f2937;
+          --muted:#6b7280;
           --accent:#5b8cff;
           --accent-2:#29c7ac;
           --danger:#ff6b6b;
           --warning:#ffb547;
           --success:#2ecc71;
-          --shadow:0 10px 30px rgba(0,0,0,.25);
+          --shadow:0 10px 30px rgba(0,0,0,.12);
           --radius:18px;
         }
         * { box-sizing:border-box; }
         body {
-  margin:0;
-  font-family: Inter, Arial, sans-serif;
-  background:#f5f7fb;
-  color:var(--text);
-}
+          margin:0;
+          font-family: Inter, Arial, sans-serif;
+          background:#f5f7fb;
+          color:var(--text);
+        }
         .app {
           display:grid;
           grid-template-columns: 260px 1fr;
           min-height:100vh;
         }
         .sidebar {
-  background:#ffffff;
-  border-right:1px solid var(--line);
-  padding:24px 18px;
+          background:#ffffff;
+          border-right:1px solid var(--line);
+          padding:24px 18px;
           position:sticky;
           top:0;
           height:100vh;
@@ -437,9 +382,9 @@ function pageTemplate(title, activePage, content, extraScripts = "") {
           line-height:1.45;
         }
         .main {
-  padding: 26px;
-  overflow: hidden;
-}
+          padding:26px;
+          overflow:hidden;
+        }
         .topbar {
           display:flex;
           justify-content:space-between;
@@ -477,16 +422,13 @@ function pageTemplate(title, activePage, content, extraScripts = "") {
         .grid-2 {
           grid-template-columns:repeat(2, minmax(0, 1fr));
         }
-        .grid-3 {
-          grid-template-columns:repeat(3, minmax(0, 1fr));
+        .card {
+          background:#ffffff;
+          border:1px solid var(--line);
+          border-radius:var(--radius);
+          padding:20px;
+          box-shadow:0 8px 24px rgba(15, 23, 42, 0.06);
         }
-       .card {
-  background:#ffffff;
-  border:1px solid var(--line);
-  border-radius:var(--radius);
-  padding:20px;
-  box-shadow:0 8px 24px rgba(15, 23, 42, 0.06);
-}
         .card-title {
           font-size:18px;
           font-weight:800;
@@ -496,28 +438,6 @@ function pageTemplate(title, activePage, content, extraScripts = "") {
           color:var(--muted);
           font-size:13px;
           margin-bottom:16px;
-        }
-        .stats {
-          display:grid;
-          grid-template-columns:repeat(4,minmax(0,1fr));
-          gap:14px;
-        }
-        .stat {
-          background:var(--panel);
-          border:1px solid var(--line);
-          border-radius:16px;
-          padding:16px;
-        }
-        .stat-label {
-          color:var(--muted);
-          font-size:12px;
-          text-transform:uppercase;
-          letter-spacing:1px;
-          margin-bottom:6px;
-        }
-        .stat-value {
-          font-size:24px;
-          font-weight:800;
         }
         .btn, button {
           appearance:none;
@@ -539,13 +459,8 @@ function pageTemplate(title, activePage, content, extraScripts = "") {
         }
         .btn-danger {
           background:rgba(255,107,107,.14);
-          color:#ffd5d5;
+          color:#a33a3a;
           border:1px solid rgba(255,107,107,.25);
-        }
-        .btn-success {
-          background:rgba(46,204,113,.14);
-          color:#d7ffe7;
-          border:1px solid rgba(46,204,113,.25);
         }
         .btn:hover, button:hover {
           transform:translateY(-1px);
@@ -559,7 +474,7 @@ function pageTemplate(title, activePage, content, extraScripts = "") {
         }
         .field-grid {
           display:grid;
-          grid-template-columns:repeat(4,minmax(0,1fr));
+          grid-template-columns:repeat(6,minmax(0,1fr));
           gap:14px;
         }
         .field-grid-2 {
@@ -608,44 +523,43 @@ function pageTemplate(title, activePage, content, extraScripts = "") {
           letter-spacing:1px;
         }
         .calendar-wrap {
-  width: 100%;
-  max-width: 100%;
-  height: 75vh;
-  overflow-x: auto;
-  overflow-y: auto;
-  border-radius: 16px;
-  border: 1px solid var(--line);
-  background: var(--panel);
-}
-
+          width:100%;
+          max-width:100%;
+          height:75vh;
+          overflow-x:auto;
+          overflow-y:auto;
+          border-radius:16px;
+          border:1px solid var(--line);
+          background:var(--panel);
+        }
         .calendar-table {
-  min-width: 3000px;
-  border-collapse: separate;
-  border-spacing: 0;
-}
+          min-width:3000px;
+          border-collapse:separate;
+          border-spacing:0;
+        }
         .calendar-table th, .calendar-table td {
           text-align:center;
-          min-width:110px;
+          min-width:120px;
           border-bottom:1px solid var(--line);
+          background:#fff;
         }
         .calendar-table th:first-child,
-.calendar-table td:first-child {
-  text-align: left;
-  min-width: 170px;
-  max-width: 170px;
-  width: 170px;
-  position: sticky;
-  left: 0;
-  background: #ffffff;
-  z-index: 20;
-  box-shadow: 6px 0 8px rgba(15, 23, 42, 0.06);
-  white-space: normal;
-  word-break: break-word;
-}
-
-.calendar-table th:first-child {
-  z-index: 25;
-}
+        .calendar-table td:first-child {
+          text-align:left;
+          min-width:170px;
+          max-width:170px;
+          width:170px;
+          position:sticky;
+          left:0;
+          background:#ffffff;
+          z-index:20;
+          box-shadow:6px 0 8px rgba(15, 23, 42, 0.06);
+          white-space:normal;
+          word-break:break-word;
+        }
+        .calendar-table th:first-child {
+          z-index:25;
+        }
         .price-original {
           font-size:15px;
           font-weight:800;
@@ -665,13 +579,13 @@ function pageTemplate(title, activePage, content, extraScripts = "") {
           color:var(--muted);
           font-size:12px;
         }
-       .strategy-box {
-  background:#f8fbff;
-  border:1px solid var(--line);
-  border-radius:16px;
-  padding:16px;
-  margin-top:14px;
-}
+        .strategy-box {
+          background:#f8fbff;
+          border:1px solid var(--line);
+          border-radius:16px;
+          padding:16px;
+          margin-top:14px;
+        }
         .toggle {
           display:flex;
           align-items:center;
@@ -683,28 +597,19 @@ function pageTemplate(title, activePage, content, extraScripts = "") {
         }
         .listing-pill {
           display:inline-block;
-          background:rgba(91,140,255,.12);
-          border:1px solid rgba(91,140,255,.24);
-          color:#d9e5ff;
+          background:#eef4ff;
+          border:1px solid #cfe0ff;
+          color:#3157a5;
           border-radius:999px;
           padding:7px 11px;
           margin:4px 6px 0 0;
           font-size:12px;
           font-weight:700;
         }
-        .banner {
-          padding:14px 16px;
-          border-radius:16px;
-          background:linear-gradient(90deg, rgba(41,199,172,.14), rgba(91,140,255,.12));
-          border:1px solid rgba(91,140,255,.24);
-          margin-bottom:18px;
-          color:#dff9f3;
-        }
         @media (max-width: 1100px) {
           .app { grid-template-columns: 1fr; }
           .sidebar { position:relative; height:auto; }
-          .stats { grid-template-columns:repeat(2,minmax(0,1fr)); }
-          .grid-2, .grid-3, .field-grid, .field-grid-2 { grid-template-columns:1fr; }
+          .grid-2, .field-grid, .field-grid-2 { grid-template-columns:1fr; }
         }
       </style>
     </head>
@@ -720,7 +625,7 @@ function pageTemplate(title, activePage, content, extraScripts = "") {
           </nav>
           <div class="sidebar-note">
             Managed scope only.<br/><br/>
-            This UI works only with your selected test listings and keeps the current strategy preview read only.
+            This UI works only with your selected test listings.
           </div>
         </aside>
         <main class="main">
@@ -768,10 +673,12 @@ async function getRatesMap(token, startDate, endDate) {
     ratesMap[listingId][date] = {
       price: originalPrice,
       newPrice: applied.newPrice,
+      appliedPct: applied.appliedPct,
       ruleLabel: applied.ruleLabel,
       minNights: getDayMinNights(day),
-      strategyMinNights: applied.minNights,
-      strategyMaxNights: applied.maxNights
+      strategyGapNights: applied.minNights,
+      status: getDayStatus(day),
+      isFinal: applied.isFinal
     };
   }
 
@@ -835,7 +742,7 @@ app.get("/", (req, res) => {
 app.get("/listings", async (req, res) => {
   const token = await getAccessToken();
   const listingsData = await getListingsDataWithTitles(token);
-  
+
   const content = `
     <div class="topbar">
       <div>
@@ -860,13 +767,14 @@ app.get("/listings", async (req, res) => {
         </form>
       </div>
 
-            <div class="card">
+      <div class="card">
         <div class="card-title">Managed Properties</div>
         <div class="card-subtitle">Current managed properties by nickname.</div>
         <div id="listingPills">
           ${listingsData.map(l => `<span class="listing-pill">${l.title}</span>`).join("")}
         </div>
       </div>
+    </div>
 
     <div class="card" style="margin-top:20px;">
       <div class="card-title">Current Managed Listings</div>
@@ -874,14 +782,14 @@ app.get("/listings", async (req, res) => {
       <table>
         <thead>
           <tr>
-            <th>Listing ID</th>
+            <th>Property</th>
             <th>Action</th>
           </tr>
         </thead>
         <tbody>
           ${listingsData.map(listing => `
-  <tr>
-    <td>${listing.title}</td>
+            <tr>
+              <td>${listing.title}</td>
               <td>
                 <button class="btn btn-danger" onclick="removeListing('${listing.id}')">Remove</button>
               </td>
@@ -934,7 +842,6 @@ app.get("/listings", async (req, res) => {
   res.send(pageTemplate("Listings", "listings", content, scripts));
 });
 
-
 app.get("/settings", async (req, res) => {
   const token = await getAccessToken();
   const listingsData = await getListingsDataWithTitles(token);
@@ -943,7 +850,7 @@ app.get("/settings", async (req, res) => {
     <div class="topbar">
       <div>
         <h1 class="page-title">Settings</h1>
-        <div class="page-subtitle">Set simple pricing rules and choose which properties to apply them to.</div>
+        <div class="page-subtitle">Set simple pricing rules by days before arrival.</div>
       </div>
     </div>
 
@@ -955,68 +862,56 @@ app.get("/settings", async (req, res) => {
           <div class="row" style="justify-content:space-between;">
             <div>
               <div class="card-title">${listing.title}</div>
-              <div class="card-subtitle">${listing.id}</div>
             </div>
             <div class="toggle">
               <input type="checkbox" name="enabled" ${strategy.enabled ? "checked" : ""} />
-              <label>Enable strategy</label>
+              <label>Enable</label>
             </div>
           </div>
 
           <div class="strategy-box">
-          ${listingsData.map(listing => {
-  const strategy = LISTING_STRATEGIES[listing.id] || createDefaultStrategy();
+            <div class="card-subtitle">Simple discount rules by days before arrival</div>
 
-  return `
-    <form class="card strategy-form" data-id="${listing.id}" style="margin-bottom:20px;">
-      <div class="row" style="justify-content:space-between;">
-        <div>
-          <div class="card-title">${listing.title}</div>
-        </div>
-      </div>
+            <div class="field-grid">
+              <div class="field">
+                <label>Min Nightly Rate</label>
+                <input type="number" name="min" value="${strategy.min}" />
+              </div>
 
-      <div class="strategy-box">
-        <div class="card-subtitle">Simple discount rules by days before arrival</div>
+              <div class="field">
+                <label>0-7 Days (%)</label>
+                <input type="number" name="drop0to7" value="${strategy.drop0to7 || 0}" />
+              </div>
 
-        <div class="field-grid">
-          <div class="field">
-            <label>Min Nightly Rate</label>
-            <input type="number" name="min" value="${strategy.min}" />
+              <div class="field">
+                <label>8-14 Days (%)</label>
+                <input type="number" name="drop8to13" value="${strategy.drop8to13 || 0}" />
+              </div>
+
+              <div class="field">
+                <label>15-21 Days (%)</label>
+                <input type="number" name="drop14to21" value="${strategy.drop14to21 || 0}" />
+              </div>
+
+              <div class="field">
+                <label>22-30 Days (%)</label>
+                <input type="number" name="drop22to30" value="${strategy.drop22to30 || 0}" />
+              </div>
+
+              <div class="field">
+                <label>Gap Nights</label>
+                <input type="number" name="gapNights" value="${strategy.gapNights || 2}" />
+              </div>
+            </div>
           </div>
 
-          <div class="field">
-            <label>0–7 Days (%)</label>
-            <input type="number" name="drop0to7" value="${strategy.drop0to7 || 0}" />
+          <div class="row" style="margin-top:16px;">
+            <button class="btn btn-primary" type="submit">Save Settings</button>
           </div>
-
-          <div class="field">
-            <label>8–14 Days (%)</label>
-            <input type="number" name="drop8to13" value="${strategy.drop8to13 || 0}" />
-          </div>
-
-          <div class="field">
-            <label>15–21 Days (%)</label>
-            <input type="number" name="drop14to21" value="${strategy.drop14to21 || 0}" />
-          </div>
-
-          <div class="field">
-            <label>22–30 Days (%)</label>
-            <input type="number" name="drop22to30" value="${strategy.drop22to30 || 0}" />
-          </div>
-
-          <div class="field">
-            <label>Gap Nights (Min Stay)</label>
-            <input type="number" name="gapNights" value="${strategy.gapNights || 2}" />
-          </div>
-        </div>
-      </div>
-
-      <div class="row" style="margin-top:16px;">
-        <button class="btn btn-primary" type="submit">Save Settings</button>
-      </div>
-    </form>
+        </form>
+      `;
+    }).join("")}
   `;
-}).join("")}
 
   const scripts = `
     <script>
@@ -1024,15 +919,12 @@ app.get("/settings", async (req, res) => {
         const fd = new FormData(form);
         const obj = {
           enabled: false,
-          pct: 0,
-          min: 0,
-          max: 0,
-          minNights: 1,
-          maxNights: 30,
-          weekdayPct: 0,
-          weekendPct: 0,
-          seasonalRules: [],
-          eventRules: []
+          min: 100,
+          drop0to7: 0,
+          drop8to13: 0,
+          drop14to21: 0,
+          drop22to30: 0,
+          gapNights: 2
         };
 
         for (const [key, value] of fd.entries()) {
@@ -1040,30 +932,8 @@ app.get("/settings", async (req, res) => {
             obj.enabled = true;
             continue;
           }
-
-          const seasonalMatch = key.match(/^seasonalRules\\[(\\d+)\\]\\[(.+)\\]$/);
-          if (seasonalMatch) {
-            const idx = Number(seasonalMatch[1]);
-            const field = seasonalMatch[2];
-            if (!obj.seasonalRules[idx]) obj.seasonalRules[idx] = {};
-            obj.seasonalRules[idx][field] = value;
-            continue;
-          }
-
-          const eventMatch = key.match(/^eventRules\\[(\\d+)\\]\\[(.+)\\]$/);
-          if (eventMatch) {
-            const idx = Number(eventMatch[1]);
-            const field = eventMatch[2];
-            if (!obj.eventRules[idx]) obj.eventRules[idx] = {};
-            obj.eventRules[idx][field] = value;
-            continue;
-          }
-
           obj[key] = value;
         }
-
-        obj.seasonalRules = obj.seasonalRules.filter(Boolean);
-        obj.eventRules = obj.eventRules.filter(Boolean);
 
         return obj;
       }
@@ -1114,7 +984,7 @@ app.get("/calendar", async (req, res) => {
       <div class="topbar">
         <div>
           <h1 class="page-title">Calendar</h1>
-          <div class="page-subtitle">Original Guesty rate and calculated strategy rate side by side.</div>
+          <div class="page-subtitle">Original rate, applied discount, and final rate.</div>
         </div>
         <div class="chip-row">
           <div class="chip">Dates: ${startDate} → ${endDate}</div>
@@ -1135,22 +1005,23 @@ app.get("/calendar", async (req, res) => {
               <tr>
                 <td>
                   <div><strong>${listing.title}</strong></div>
-                  
                 </td>
                 ${dates.map(date => {
-  const cell = (ratesMap[listing.id] && ratesMap[listing.id][date]) || {};
-  return `
-    <td>
-      <div class="price-original">${cell.price !== undefined && cell.price !== null ? `$${cell.price}` : "-"}</div>
-      <div class="price-new">${cell.newPrice !== undefined && cell.newPrice !== null ? `$${cell.newPrice}` : ""}</div>
-      <div class="price-rule">${cell.ruleLabel || ""}</div>
-      <div class="small-text" style="margin-top:6px; color:${cell.status === false ? "#dc2626" : "#16a34a"};">
-        ${cell.status === false ? "Booked" : "Available"}
-      </div>
-      <div class="small-text">${cell.minNights !== undefined && cell.minNights !== null ? `Guesty min ${cell.minNights}` : ""}</div>
-    </td>
-  `;
-}).join("")}
+                  const cell = (ratesMap[listing.id] && ratesMap[listing.id][date]) || {};
+                  return `
+                    <td>
+                      <div class="price-original">${cell.price !== undefined && cell.price !== null ? `$${cell.price}` : "-"}</div>
+                      <div class="price-rule">${cell.appliedPct !== undefined ? `${cell.appliedPct}% = ${cell.newPrice !== undefined && cell.newPrice !== null ? `$${cell.newPrice}` : "-"}` : ""}</div>
+                      <div class="price-new">${cell.isFinal ? `FINAL $${cell.newPrice}` : ""}</div>
+                      <div class="price-rule">${cell.ruleLabel || ""}</div>
+                      <div class="small-text" style="margin-top:6px; color:${cell.status === false ? "#dc2626" : "#16a34a"};">
+                        ${cell.status === false ? "Booked" : "Available"}
+                      </div>
+                      <div class="small-text">${cell.minNights !== undefined && cell.minNights !== null ? `Guesty min ${cell.minNights}` : ""}</div>
+                      <div class="small-text">${cell.strategyGapNights ? `Gap nights ${cell.strategyGapNights}` : ""}</div>
+                    </td>
+                  `;
+                }).join("")}
               </tr>
             `).join("")}
           </tbody>
@@ -1163,7 +1034,6 @@ app.get("/calendar", async (req, res) => {
     res.status(500).send(`<pre>${JSON.stringify(e.response?.data || e.message, null, 2)}</pre>`);
   }
 });
-
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
