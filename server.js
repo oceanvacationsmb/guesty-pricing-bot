@@ -211,28 +211,38 @@ function getDayMinNights(day) {
 function getDayStatus(day) {
   const status = String(day.status || "").toLowerCase();
 
-  if (status === "booked" || status === "reserved" || status === "unavailable") {
-    return "BOOKED";
-  }
-
-  if (day.available === false || day.isAvailable === false || day.reserved === true) {
-    return "BOOKED";
-  }
-
-  const blocks = day.blocks || {};
+  // Real reservations
   if (
-    blocks.r === true ||
-    blocks.b === true ||
-    blocks.m === true ||
-    blocks.bd === true ||
-    blocks.sr === true ||
-    blocks.abl === true ||
-    blocks.a === true ||
-    blocks.bw === true ||
-    blocks.o === true ||
-    blocks.pt === true
+    status === "booked" ||
+    status === "reserved" ||
+    day.reserved === true
   ) {
     return "BOOKED";
+  }
+
+  // Manual blocks / unavailable
+  if (
+    status === "unavailable" ||
+    day.available === false ||
+    day.isAvailable === false
+  ) {
+    return "BLOCKED";
+  }
+
+  // Guesty block flags
+  const blocks = day.blocks || {};
+
+  if (blocks.r === true) return "BOOKED";   // reservation
+  if (blocks.b === true) return "BOOKED";   // booking
+
+  if (
+    blocks.m === true ||   // manual block
+    blocks.bd === true ||
+    blocks.abl === true ||
+    blocks.a === true ||
+    blocks.o === true
+  ) {
+    return "BLOCKED";
   }
 
   return "AVAILABLE";
