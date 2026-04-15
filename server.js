@@ -1179,8 +1179,16 @@ app.get("/test-update/:listingId", async (req, res) => {
 const gapLength = gapMap[date];
 let finalMinNights = day._originalMin;
 
-// only lower min nights when there is a real gap
-if (gapLength && day._originalMin && gapLength < day._originalMin) {
+// only lower min nights when:
+// 1. there is a real gap
+// 2. gap is smaller than original Guesty min
+// 3. gap is at least the minimum gap allowed in settings
+if (
+  gapLength &&
+  day._originalMin &&
+  gapLength < day._originalMin &&
+  gapLength >= strategy.gapNights
+) {
   finalMinNights = gapLength;
 }
 
