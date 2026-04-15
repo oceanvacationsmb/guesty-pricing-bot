@@ -1279,7 +1279,7 @@ if (PROPERTY_SYNC_ENABLED[listingId] === false) {
     }
 
     const token = await getAccessToken();
-    const { startDate, endDate } = buildDateRange(365);
+    const { startDate, endDate } = buildDateRange(60);
 
     const calendarData = await guestyGetBatchCalendar(
       [listingId],
