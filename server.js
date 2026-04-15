@@ -209,11 +209,33 @@ function getDayMinNights(day) {
 }
 
 function getDayStatus(day) {
-  if (day.status !== undefined && day.status !== null) return day.status;
-  if (day.available !== undefined && day.available !== null) return day.available;
-  if (day.isAvailable !== undefined && day.isAvailable !== null) return day.isAvailable;
-  if (day.reserved !== undefined && day.reserved !== null) return !day.reserved;
-  return null;
+  const status = String(day.status || "").toLowerCase();
+
+  if (status === "booked" || status === "reserved" || status === "unavailable") {
+    return "BOOKED";
+  }
+
+  if (day.available === false || day.isAvailable === false || day.reserved === true) {
+    return "BOOKED";
+  }
+
+  const blocks = day.blocks || {};
+  if (
+    blocks.r === true ||
+    blocks.b === true ||
+    blocks.m === true ||
+    blocks.bd === true ||
+    blocks.sr === true ||
+    blocks.abl === true ||
+    blocks.a === true ||
+    blocks.bw === true ||
+    blocks.o === true ||
+    blocks.pt === true
+  ) {
+    return "BOOKED";
+  }
+
+  return "AVAILABLE";
 }
 
 function toNumberOrNull(value) {
