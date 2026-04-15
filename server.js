@@ -44,7 +44,9 @@ function loadData() {
     ? parsed.managedListings
     : DEFAULT_LISTINGS,
   listingStrategies: parsed.listingStrategies || {},
-  rateBaselines: parsed.rateBaselines || {}
+  rateBaselines: parsed.rateBaselines || {},
+  globalSyncEnabled: parsed.globalSyncEnabled ?? true,
+  propertySyncEnabled: parsed.propertySyncEnabled || {}
 };
     }
   } catch (e) {
@@ -54,7 +56,9 @@ function loadData() {
   return {
   managedListings: DEFAULT_LISTINGS,
   listingStrategies: {},
-  rateBaselines: {}
+  rateBaselines: {},
+  globalSyncEnabled: true,
+  propertySyncEnabled: {}
 };
 }
 
@@ -63,6 +67,8 @@ const persistedData = loadData();
 let MANAGED_LISTINGS = persistedData.managedListings;
 let LISTING_STRATEGIES = persistedData.listingStrategies || {};
 let RATE_BASELINES = persistedData.rateBaselines || {};
+let GLOBAL_SYNC_ENABLED = persistedData.globalSyncEnabled ?? true;
+let PROPERTY_SYNC_ENABLED = persistedData.propertySyncEnabled || {};
 
 for (const id of DEFAULT_LISTINGS) {
   if (!MANAGED_LISTINGS.includes(id)) {
@@ -89,8 +95,10 @@ function saveData() {
         {
   managedListings: MANAGED_LISTINGS,
   listingStrategies: LISTING_STRATEGIES,
-  rateBaselines: RATE_BASELINES
-},
+  rateBaselines: RATE_BASELINES,
+  globalSyncEnabled: GLOBAL_SYNC_ENABLED,
+  propertySyncEnabled: PROPERTY_SYNC_ENABLED
+}
         null,
         2
       )
@@ -835,6 +843,36 @@ app.post("/api/strategy/:id", (req, res) => {
   res.json({ ok: true, strategy });
 });
 
+app.get("/api/toggles", (req, res) => {
+  res.json({
+    globalSyncEnabled: GLOBAL_SYNC_ENABLED,
+    propertySyncEnabled: PROPERTY_SYNC_ENABLED
+  });
+});
+
+app.post("/api/toggles/global", (req, res) => {
+  GLOBAL_SYNC_ENABLED = !!req.body.enabled;
+  saveData();
+  res.json({ ok: true, globalSyncEnabled: GLOBAL_SYNC_ENABLED });
+});
+
+app.post("/api/toggles/property/:id", (req, res) => {
+  const id = req.params.id;
+
+  if (!MANAGED_LISTINGS.includes(id)) {
+    return res.status(400).json({ error: "Listing not allowed" });
+  }
+
+  PROPERTY_SYNC_ENABLED[id] = !!req.body.enabled;
+  saveData();
+
+  res.json({
+    ok: true,
+    id,
+    enabled: PROPERTY_SYNC_ENABLED[id]
+  });
+});
+
 app.get("/", (req, res) => {
   res.redirect("/calendar");
 });
@@ -1082,15 +1120,28 @@ app.get("/calendar", async (req, res) => {
 
     const content = `
       <div class="topbar">
-        <div>
-          <h1 class="page-title">Calendar</h1>
-          <div class="page-subtitle">Original rate, applied discount, and final rate.</div>
-        </div>
-        <div class="chip-row">
-          <div class="chip">Dates: ${startDate} → ${endDate}</div>
-          <div class="chip">Managed Listings: ${MANAGED_LISTINGS.length}</div>
-        </div>
-      </div>
+  <div>
+    <h1 class="page-title">Calendar</h1>
+    <div class="page-subtitle">Original rate, applied discount, and final rate.</div>
+  </div>
+  <div class="chip-row">
+    <div class="chip">Dates: ${startDate} → ${endDate}</div>
+    <div class="chip">Managed Listings: ${MANAGED_LISTINGS.length}</div>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:20px;">
+  <div class="row" style="justify-content:space-between;">
+    <div>
+      <div class="card-title">Sync Controls</div>
+      <div class="card-subtitle">Use toggle to stop or allow manual push per property later.</div>
+    </div>
+    <div class="toggle">
+      <input type="checkbox" id="globalSyncToggle" ${GLOBAL_SYNC_ENABLED ? "checked" : ""} />
+      <label for="globalSyncToggle">Global Sync</label>
+    </div>
+  </div>
+</div>
 
       <div class="calendar-wrap">
         <table class="calendar-table">
@@ -1104,8 +1155,19 @@ app.get("/calendar", async (req, res) => {
             ${listingsData.map(listing => `
               <tr>
                 <td>
-                  <div><strong>${listing.title}</strong></div>
-                </td>
+  <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+    <strong>${listing.title}</strong>
+    <label style="display:flex; align-items:center; gap:6px; font-size:12px;">
+      <input
+        type="checkbox"
+        class="property-sync-toggle"
+        data-id="${listing.id}"
+        ${PROPERTY_SYNC_ENABLED[listing.id] !== false ? "checked" : ""}
+      />
+      ON
+    </label>
+  </div>
+</td>
                 ${dates.map(date => {
                   const cell = (ratesMap[listing.id] && ratesMap[listing.id][date]) || {};
                   return `
@@ -1141,7 +1203,32 @@ app.get("/calendar", async (req, res) => {
       </div>
     `;
 
-    res.send(pageTemplate("Calendar", "calendar", content));
+    const scripts = `
+  <script>
+    document.getElementById("globalSyncToggle")?.addEventListener("change", async (e) => {
+      await fetch("/api/toggles/global", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: e.target.checked })
+      });
+    });
+
+    document.querySelectorAll(".property-sync-toggle").forEach(toggle => {
+      toggle.addEventListener("change", async (e) => {
+        const id = e.target.dataset.id;
+
+        await fetch("/api/toggles/property/" + encodeURIComponent(id), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ enabled: e.target.checked })
+        });
+      });
+    });
+  </script>
+`;
+
+res.send(pageTemplate("Calendar", "calendar", content, scripts));
+    
   } catch (e) {
     res.status(500).send(`<pre>${JSON.stringify(e.response?.data || e.message, null, 2)}</pre>`);
   }
