@@ -1123,10 +1123,10 @@ app.get("/test-update/:listingId", async (req, res) => {
       const applied = applyStrategy(originalPrice, strategy, date);
 
       nights.push({
-        date,
-        price: applied.newPrice
-      });
-    }
+  date,
+  price: applied.newPrice,
+  minNights: applied.minNights
+});
 
     if (!nights.length) {
       return res.status(400).json({ error: "No nights found to update" });
@@ -1138,7 +1138,8 @@ app.get("/test-update/:listingId", async (req, res) => {
     {
       startDate: n.date,
       endDate: n.date,
-      price: n.price
+      price: n.price,
+      minNights: n.minNights
     },
     {
       headers: {
