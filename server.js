@@ -210,37 +210,35 @@ function getDayMinNights(day) {
 
 function getDayStatus(day) {
   const status = String(day.status || "").toLowerCase();
+  const blocks = day.blocks || {};
 
-  // Real reservations
+  // Reservation / booked
   if (
+    day.reservation ||
+    day.reservationId ||
+    day.reservation_id ||
+    day.confirmationCode ||
+    day.sourceConfirmationCode ||
+    blocks.r === true ||
+    blocks.b === true ||
     status === "booked" ||
-    status === "reserved" ||
-    day.reserved === true
+    status === "reserved"
   ) {
     return "BOOKED";
   }
 
-  // Manual blocks / unavailable
+  // Gray block / unavailable / linked block / manual block
   if (
-    status === "unavailable" ||
-    day.available === false ||
-    day.isAvailable === false
-  ) {
-    return "BLOCKED";
-  }
-
-  // Guesty block flags
-  const blocks = day.blocks || {};
-
-  if (blocks.r === true) return "BOOKED";   // reservation
-  if (blocks.b === true) return "BOOKED";   // booking
-
-  if (
-    blocks.m === true ||   // manual block
+    blocks.m === true ||
     blocks.bd === true ||
     blocks.abl === true ||
     blocks.a === true ||
-    blocks.o === true
+    blocks.o === true ||
+    blocks.lpb === true ||
+    status === "blocked" ||
+    status === "unavailable" ||
+    day.available === false ||
+    day.isAvailable === false
   ) {
     return "BLOCKED";
   }
