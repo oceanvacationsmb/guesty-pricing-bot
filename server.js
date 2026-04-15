@@ -283,22 +283,7 @@ function normalizeStrategy(input = {}) {
 
 
 function applyStrategy(price, strategy, dateStr) {
-
-  const today = new Date();
-  const target = new Date(dateStr);
-  const diffDays = Math.floor((target - today) / (1000 * 60 * 60 * 24));
-
-  if (diffDays > 30) {
-    return {
-      newPrice: price,
-      ruleLabel: "No Discount",
-      appliedPct: 0,
-      minNights: null,
-      isFinal: false
-    };
-  }
-  
-
+  // 1. Declare variables ONCE at the top
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -308,20 +293,22 @@ function applyStrategy(price, strategy, dateStr) {
   const diffTime = target.getTime() - today.getTime();
   const daysBefore = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
-  if (diffDays > 30) {
-  return {
-    newPrice: price,
-    ruleLabel: "No Discount",
-    appliedPct: 0,
-    minNights: null,
-    isFinal: false
-  };
-}
+  // 2. Initial check for dates more than 30 days out
+  if (daysBefore > 30) {
+    return {
+      newPrice: price,
+      ruleLabel: "No Discount",
+      appliedPct: 0,
+      minNights: null,
+      isFinal: false
+    };
+  }
 
   let appliedPct = 0;
   let ruleLabel = "No Drop";
   let isFinal = false;
 
+  // 3. Evaluate the strategy logic
   if (daysBefore >= 0 && daysBefore <= 7) {
     appliedPct = Number(strategy.drop0to7 || 0);
     ruleLabel = "0-7 Days";
@@ -339,6 +326,7 @@ function applyStrategy(price, strategy, dateStr) {
 
   let newPrice = price - (price * (appliedPct / 100));
 
+  // Apply floor price if it exists
   if (strategy.min) {
     newPrice = Math.max(newPrice, Number(strategy.min));
   }
