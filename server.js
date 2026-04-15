@@ -1132,29 +1132,29 @@ app.get("/test-update/:listingId", async (req, res) => {
       return res.status(400).json({ error: "No nights found to update" });
     }
 
-    const response = await axios.put(
-      `https://open-api.guesty.com/v1/availability-pricing/api/calendar/listings/${listingId}`,
-      {
-        startDate,
-        endDate,
-        nights
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json"
-        }
+   for (const n of nights) {
+  await axios.put(
+    `https://open-api.guesty.com/v1/availability-pricing/api/calendar/listings/${listingId}`,
+    {
+      startDate: n.date,
+      endDate: n.date,
+      price: n.price
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json"
       }
-    );
+    }
+  );
+}
 
     res.json({
-      success: true,
-      listingId,
-      startDate,
-      endDate,
-      nights,
-      guestyResponse: response.data
-    });
+  success: true,
+  updated: nights
+});
+
+    
   } catch (e) {
     res.status(500).json({
       error: e.response?.data || e.message
