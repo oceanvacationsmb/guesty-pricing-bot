@@ -1236,10 +1236,16 @@ document.getElementById("pushRatesBtn")?.addEventListener("click", async () => {
 
   for (const id of listings) {
     try {
-      await fetch("/test-update/" + encodeURIComponent(id));
-      console.log("Updated:", id);
+      const res = await fetch("/test-update/" + encodeURIComponent(id));
+      const data = await res.json();
+
+      if (!res.ok) {
+        console.error("FAILED:", id, data);
+      } else {
+        console.log("UPDATED:", id, data);
+      }
     } catch (e) {
-      console.error("Error updating:", id);
+      console.error("ERROR:", id, e);
     }
   }
 
