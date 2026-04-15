@@ -1146,7 +1146,7 @@ app.get("/test-update/:listingId", async (req, res) => {
     }
 
     const token = await getAccessToken();
-    const { startDate, endDate } = buildDateRange(3);
+    const { startDate, endDate } = buildDateRange(365);
 
     const calendarData = await guestyGetBatchCalendar(
       [listingId],
@@ -1156,6 +1156,7 @@ app.get("/test-update/:listingId", async (req, res) => {
     );
 
     const days = extractDays(calendarData);
+    const gapMap = calculateGapMinNights(days);
     const strategy = LISTING_STRATEGIES[listingId] || createDefaultStrategy();
 
     const nights = [];
@@ -1165,16 +1166,28 @@ app.get("/test-update/:listingId", async (req, res) => {
       const originalPrice = getDayPrice(day);
       const guestyMin = getDayMinNights(day);
 
+      if (!day._originalMin) {
+  day._originalMin = guestyMin;
+}
+      
       if (!date || originalPrice === null || originalPrice === undefined) {
         continue;
       }
 
       const applied = applyStrategy(originalPrice, strategy, date);
 
-      nights.push({
+const gapLength = gapMap[date];
+let finalMinNights = day._originalMin;
+
+// only lower min nights when there is a real gap
+if (gapLength && day._originalMin && gapLength < day._originalMin) {
+  finalMinNights = gapLength;
+}
+
+nights.push({
   date,
   price: applied.newPrice,
-  minNights: applied.minNights
+  minNights: finalMinNights
 });
 }
     if (!nights.length) {
