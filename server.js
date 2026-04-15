@@ -1127,7 +1127,7 @@ app.get("/test-update/:listingId", async (req, res) => {
   price: applied.newPrice,
   minNights: applied.minNights
 });
-
+}
     if (!nights.length) {
       return res.status(400).json({ error: "No nights found to update" });
     }
