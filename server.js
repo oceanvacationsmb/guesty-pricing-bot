@@ -1163,6 +1163,7 @@ app.get("/test-update/:listingId", async (req, res) => {
     for (const day of days) {
       const date = day.date || day.day || day.calendarDate;
       const originalPrice = getDayPrice(day);
+      const guestyMin = getDayMinNights(day);
 
       if (!date || originalPrice === null || originalPrice === undefined) {
         continue;
