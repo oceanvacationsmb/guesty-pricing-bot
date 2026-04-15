@@ -1131,14 +1131,19 @@ app.get("/calendar", async (req, res) => {
 </div>
 
 <div class="card" style="margin-bottom:20px;">
-  <div class="row" style="justify-content:space-between;">
+  <div class="row" style="justify-content:space-between; align-items:center;">
     <div>
       <div class="card-title">Sync Controls</div>
-      <div class="card-subtitle">Use toggle to stop or allow manual push per property later.</div>
+      <div class="card-subtitle">Manual push and sync control.</div>
     </div>
-    <div class="toggle">
-      <input type="checkbox" id="globalSyncToggle" ${GLOBAL_SYNC_ENABLED ? "checked" : ""} />
-      <label for="globalSyncToggle">Global Sync</label>
+
+    <div class="row" style="gap:10px;">
+      <button id="pushRatesBtn" class="btn btn-primary">PUSH RATES</button>
+
+      <div class="toggle">
+        <input type="checkbox" id="globalSyncToggle" ${GLOBAL_SYNC_ENABLED ? "checked" : ""} />
+        <label for="globalSyncToggle">Global Sync</label>
+      </div>
     </div>
   </div>
 </div>
@@ -1203,8 +1208,9 @@ app.get("/calendar", async (req, res) => {
       </div>
     `;
 
+    
     const scripts = `
-  <script>
+    <script>
     document.getElementById("globalSyncToggle")?.addEventListener("change", async (e) => {
       await fetch("/api/toggles/global", {
         method: "POST",
@@ -1224,6 +1230,22 @@ app.get("/calendar", async (req, res) => {
         });
       });
     });
+
+document.getElementById("pushRatesBtn")?.addEventListener("click", async () => {
+  const listings = ${JSON.stringify(MANAGED_LISTINGS)};
+
+  for (const id of listings) {
+    try {
+      await fetch("/test-update/" + encodeURIComponent(id));
+      console.log("Updated:", id);
+    } catch (e) {
+      console.error("Error updating:", id);
+    }
+  }
+
+  alert("Push completed");
+});
+    
   </script>
 `;
 
