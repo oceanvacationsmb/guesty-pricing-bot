@@ -791,15 +791,14 @@ const baseline = RATE_BASELINES[listingId][date];
     const applied = applyStrategy(baseline.originalRate, strategy, date);
 
     ratesMap[listingId][date] = {
-      price: originalPrice,
-      newPrice: applied.newPrice,
-      appliedPct: applied.appliedPct,
-      ruleLabel: applied.ruleLabel,
-      minNights: getDayMinNights(day),
-      strategyGapNights: applied.minNights,
-      status: getDayStatus(day),
-      isFinal: applied.isFinal
-    };
+  price: originalPrice,
+  baseline: baseline.originalRate,
+  newPrice: applied.newPrice,
+  ruleLabel: applied.ruleLabel,
+  minNights: getDayMinNights(day),
+  strategyMinNights: applied.minNights,
+  strategyMaxNights: applied.maxNights
+};
   }
 
   return ratesMap;
@@ -1189,7 +1188,13 @@ app.get("/calendar", async (req, res) => {
                   const cell = (ratesMap[listing.id] && ratesMap[listing.id][date]) || {};
                   return `
                     <td>
-                      <div class="price-original">${cell.price !== undefined && cell.price !== null ? `$${cell.price}` : "-"}</div>
+                      <div class="price-original">
+  ${cell.price !== undefined && cell.price !== null ? `$${cell.price}` : "-"}
+</div>
+
+<div class="small-text" style="color:#6b7280;">
+  Base: ${cell.baseline !== undefined ? `$${cell.baseline}` : "-"}
+</div>
                       <div class="price-rule">${cell.appliedPct !== undefined ? `${cell.appliedPct}% = ${cell.newPrice !== undefined && cell.newPrice !== null ? `$${cell.newPrice}` : "-"}` : ""}</div>
                       <div class="price-new">${cell.isFinal ? `FINAL $${cell.newPrice}` : ""}</div>
                       <div class="price-rule">${cell.ruleLabel || ""}</div>
