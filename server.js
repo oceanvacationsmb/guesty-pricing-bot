@@ -1359,8 +1359,20 @@ if (
   finalMinNights = gapLength;
 }
 
+const currentGuestyPrice = originalPrice;
+const currentGuestyMin = guestyMin;
+
+// if Guesty already matches target price AND target min nights, do not push again
+if (
+  currentGuestyPrice === applied.newPrice &&
+  currentGuestyMin === finalMinNights
+) {
+  baseline.lastPushedRate = applied.newPrice;
+  continue;
+}
+
 baseline.lastPushedRate = applied.newPrice;
-      
+
 nights.push({
   date,
   price: applied.newPrice,
