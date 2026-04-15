@@ -1089,12 +1089,15 @@ app.get("/calendar", async (req, res) => {
   }
 });
 
-app.post("/test-update", async (req, res) => {
+app.post("/test-update/:listingId", async (req, res) => {
   try {
+    const { listingId } = req.params;
+
+    if (!MANAGED_LISTINGS.includes(listingId)) {
+      return res.status(400).json({ error: "Listing not allowed" });
+    }
+
     const token = await getAccessToken();
-
-    const listingId = "69d80a5bb73d3b0012fdaf1f"; // your test listing
-
     const { startDate, endDate } = buildDateRange(3);
 
     const calendarData = await guestyGetBatchCalendar(
@@ -1105,53 +1108,61 @@ app.post("/test-update", async (req, res) => {
     );
 
     const days = extractDays(calendarData);
+    const strategy = LISTING_STRATEGIES[listingId] || createDefaultStrategy();
 
-    const updates = [];
+    const nights = [];
 
     for (const day of days) {
       const date = day.date || day.day || day.calendarDate;
       const originalPrice = getDayPrice(day);
 
-      if (!date || !originalPrice) continue;
+      if (!date || originalPrice === null || originalPrice === undefined) {
+        continue;
+      }
 
-      const strategy = LISTING_STRATEGIES[listingId] || createDefaultStrategy();
       const applied = applyStrategy(originalPrice, strategy, date);
 
-      updates.push({
+      nights.push({
         date,
         price: applied.newPrice
       });
     }
 
-    // APPLY to Guesty
-    await axios.put(
+    if (!nights.length) {
+      return res.status(400).json({ error: "No nights found to update" });
+    }
+
+    const response = await axios.put(
       `https://open-api.guesty.com/v1/availability-pricing/api/calendar/listings/${listingId}`,
       {
         startDate,
         endDate,
-        nights: updates.map(u => ({
-          date: u.date,
-          price: u.price
-        }))
+        nights
       },
       {
         headers: {
-          Authorization: `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
         }
       }
     );
 
     res.json({
       success: true,
-      updated: updates
+      listingId,
+      startDate,
+      endDate,
+      nights,
+      guestyResponse: response.data
     });
-
   } catch (e) {
     res.status(500).json({
       error: e.response?.data || e.message
     });
   }
 });
+
+
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
