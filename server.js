@@ -18,17 +18,18 @@ const DEFAULT_LISTINGS = [
   "69db18d8085e450014e2bf65",
   "69db12c790763a00130d40bc",
   "69db12bff579c50013548a0d",
-  "69db0826f579c50013546169"
+  "69db0826f579c50013546169",
+  "69d80a5bb73d3b0012fdaf1f"
 ];
 
 function createDefaultStrategy() {
   return {
     enabled: true,
-    min: 100,
-    drop0to7: 0,
-    drop8to13: 0,
-    drop14to21: 0,
-    drop22to30: 0,
+    min: 300,
+    drop0to7: 20,
+    drop8to13: 15,
+    drop14to21: 10,
+    drop22to30: 5,
     gapNights: 2
   };
 }
@@ -60,11 +61,22 @@ const persistedData = loadData();
 let MANAGED_LISTINGS = persistedData.managedListings;
 let LISTING_STRATEGIES = persistedData.listingStrategies || {};
 
+for (const id of DEFAULT_LISTINGS) {
+  if (!MANAGED_LISTINGS.includes(id)) {
+    MANAGED_LISTINGS.push(id);
+  }
+
+  if (!LISTING_STRATEGIES[id]) {
+    LISTING_STRATEGIES[id] = createDefaultStrategy();
+  }
+}
 for (const id of MANAGED_LISTINGS) {
   if (!LISTING_STRATEGIES[id]) {
     LISTING_STRATEGIES[id] = createDefaultStrategy();
   }
 }
+
+saveData();
 
 function saveData() {
   try {
@@ -1074,6 +1086,70 @@ app.get("/calendar", async (req, res) => {
     res.send(pageTemplate("Calendar", "calendar", content));
   } catch (e) {
     res.status(500).send(`<pre>${JSON.stringify(e.response?.data || e.message, null, 2)}</pre>`);
+  }
+});
+
+app.post("/test-update", async (req, res) => {
+  try {
+    const token = await getAccessToken();
+
+    const listingId = "69d80a5bb73d3b0012fdaf1f"; // your test listing
+
+    const { startDate, endDate } = buildDateRange(3);
+
+    const calendarData = await guestyGetBatchCalendar(
+      [listingId],
+      startDate,
+      endDate,
+      token
+    );
+
+    const days = extractDays(calendarData);
+
+    const updates = [];
+
+    for (const day of days) {
+      const date = day.date || day.day || day.calendarDate;
+      const originalPrice = getDayPrice(day);
+
+      if (!date || !originalPrice) continue;
+
+      const strategy = LISTING_STRATEGIES[listingId] || createDefaultStrategy();
+      const applied = applyStrategy(originalPrice, strategy, date);
+
+      updates.push({
+        date,
+        price: applied.newPrice
+      });
+    }
+
+    // APPLY to Guesty
+    await axios.put(
+      `https://open-api.guesty.com/v1/availability-pricing/api/calendar/listings/${listingId}`,
+      {
+        startDate,
+        endDate,
+        nights: updates.map(u => ({
+          date: u.date,
+          price: u.price
+        }))
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    );
+
+    res.json({
+      success: true,
+      updated: updates
+    });
+
+  } catch (e) {
+    res.status(500).json({
+      error: e.response?.data || e.message
+    });
   }
 });
 
