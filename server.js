@@ -1238,6 +1238,14 @@ app.get("/test-update/:listingId", async (req, res) => {
   try {
     const { listingId } = req.params;
 
+    if (!GLOBAL_SYNC_ENABLED) {
+  return res.status(400).json({ error: "Global sync is OFF" });
+}
+
+if (PROPERTY_SYNC_ENABLED[listingId] === false) {
+  return res.status(400).json({ error: "Property sync is OFF" });
+}
+
     if (!MANAGED_LISTINGS.includes(listingId)) {
       return res.status(400).json({ error: "Listing not allowed" });
     }
