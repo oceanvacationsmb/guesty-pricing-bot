@@ -1089,7 +1089,7 @@ app.get("/calendar", async (req, res) => {
   }
 });
 
-app.post("/test-update/:listingId", async (req, res) => {
+app.get("/test-update/:listingId", async (req, res) => {
   try {
     const { listingId } = req.params;
 
