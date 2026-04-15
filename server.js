@@ -775,8 +775,20 @@ async function getRatesMap(token, startDate, endDate) {
     if (!ratesMap[listingId]) ratesMap[listingId] = {};
 
     const originalPrice = getDayPrice(day);
+    if (!RATE_BASELINES[listingId]) {
+  RATE_BASELINES[listingId] = {};
+}
+
+if (!RATE_BASELINES[listingId][date]) {
+  RATE_BASELINES[listingId][date] = {
+    originalRate: originalPrice,
+    lastPushedRate: null
+  };
+}
+
+const baseline = RATE_BASELINES[listingId][date];
     const strategy = LISTING_STRATEGIES[listingId] || createDefaultStrategy();
-    const applied = applyStrategy(originalPrice, strategy, date);
+    const applied = applyStrategy(baseline.originalRate, strategy, date);
 
     ratesMap[listingId][date] = {
       price: originalPrice,
