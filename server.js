@@ -1044,9 +1044,21 @@ app.get("/calendar", async (req, res) => {
                       <div class="price-rule">${cell.appliedPct !== undefined ? `${cell.appliedPct}% = ${cell.newPrice !== undefined && cell.newPrice !== null ? `$${cell.newPrice}` : "-"}` : ""}</div>
                       <div class="price-new">${cell.isFinal ? `FINAL $${cell.newPrice}` : ""}</div>
                       <div class="price-rule">${cell.ruleLabel || ""}</div>
-                      <div class="small-text" style="margin-top:6px; color:${cell.status === false ? "#dc2626" : "#16a34a"};">
-                        ${cell.status === false ? "Booked" : "Available"}
-                      </div>
+                      <div class="small-text" style="margin-top:6px; color:${
+  cell.status === "BOOKED"
+    ? "#dc2626"
+    : cell.status === "BLOCKED"
+    ? "#d97706"
+    : "#16a34a"
+};">
+  ${
+    cell.status === "BOOKED"
+      ? "BOOKED"
+      : cell.status === "BLOCKED"
+      ? "BLOCKED"
+      : "AVAILABLE"
+  }
+</div>
                       <div class="small-text">${cell.minNights !== undefined && cell.minNights !== null ? `Guesty min ${cell.minNights}` : ""}</div>
                       <div class="small-text">${cell.strategyGapNights ? `Gap nights ${cell.strategyGapNights}` : ""}</div>
                     </td>
