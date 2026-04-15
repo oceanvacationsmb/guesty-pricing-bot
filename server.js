@@ -280,13 +280,20 @@ function normalizeStrategy(input = {}) {
   };
 }
 
+
+
 function applyStrategy(price, strategy, dateStr) {
-  if (!strategy || !strategy.enabled || price === null || price === undefined) {
+
+  const today = new Date();
+  const target = new Date(dateStr);
+  const diffDays = Math.floor((target - today) / (1000 * 60 * 60 * 24));
+
+  if (diffDays > 30) {
     return {
       newPrice: price,
-      ruleLabel: "Disabled",
+      ruleLabel: "No Discount",
       appliedPct: 0,
-      minNights: strategy?.gapNights ?? null,
+      minNights: null,
       isFinal: false
     };
   }
