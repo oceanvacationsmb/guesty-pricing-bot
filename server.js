@@ -40,26 +40,29 @@ function loadData() {
       const raw = fs.readFileSync(DATA_FILE, "utf8");
       const parsed = JSON.parse(raw || "{}");
       return {
-        managedListings: Array.isArray(parsed.managedListings)
-          ? parsed.managedListings
-          : DEFAULT_LISTINGS,
-        listingStrategies: parsed.listingStrategies || {}
-      };
+  managedListings: Array.isArray(parsed.managedListings)
+    ? parsed.managedListings
+    : DEFAULT_LISTINGS,
+  listingStrategies: parsed.listingStrategies || {},
+  rateBaselines: parsed.rateBaselines || {}
+};
     }
   } catch (e) {
     console.log("DATA LOAD ERROR:", e.message);
   }
 
   return {
-    managedListings: DEFAULT_LISTINGS,
-    listingStrategies: {}
-  };
+  managedListings: DEFAULT_LISTINGS,
+  listingStrategies: {},
+  rateBaselines: {}
+};
 }
 
 const persistedData = loadData();
 
 let MANAGED_LISTINGS = persistedData.managedListings;
 let LISTING_STRATEGIES = persistedData.listingStrategies || {};
+let RATE_BASELINES = persistedData.rateBaselines || {};
 
 for (const id of DEFAULT_LISTINGS) {
   if (!MANAGED_LISTINGS.includes(id)) {
@@ -84,9 +87,10 @@ function saveData() {
       DATA_FILE,
       JSON.stringify(
         {
-          managedListings: MANAGED_LISTINGS,
-          listingStrategies: LISTING_STRATEGIES
-        },
+  managedListings: MANAGED_LISTINGS,
+  listingStrategies: LISTING_STRATEGIES,
+  rateBaselines: RATE_BASELINES
+},
         null,
         2
       )
@@ -295,6 +299,16 @@ function applyStrategy(price, strategy, dateStr) {
 
   const diffTime = target.getTime() - today.getTime();
   const daysBefore = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+  if (diffDays > 30) {
+  return {
+    newPrice: price,
+    ruleLabel: "No Discount",
+    appliedPct: 0,
+    minNights: null,
+    isFinal: false
+  };
+}
 
   let appliedPct = 0;
   let ruleLabel = "No Drop";
@@ -1164,6 +1178,16 @@ app.get("/test-update/:listingId", async (req, res) => {
     for (const day of days) {
       const date = day.date || day.day || day.calendarDate;
       const originalPrice = getDayPrice(day);
+      if (!RATE_BASELINES[listingId]) {
+  RATE_BASELINES[listingId] = {};
+}
+
+if (!RATE_BASELINES[listingId][date]) {
+  RATE_BASELINES[listingId][date] = {
+    originalRate: originalPrice,
+    lastPushedRate: null
+  };
+}
       const guestyMin = getDayMinNights(day);
 
       if (!day._originalMin) {
@@ -1174,7 +1198,19 @@ app.get("/test-update/:listingId", async (req, res) => {
         continue;
       }
 
-      const applied = applyStrategy(originalPrice, strategy, date);
+      const baseline = RATE_BASELINES[listingId][date];
+
+// if current Guesty rate is different from what app last pushed,
+// assume Guesty was changed manually and refresh the baseline
+if (
+  baseline.lastPushedRate !== null &&
+  originalPrice !== baseline.lastPushedRate
+) {
+  baseline.originalRate = originalPrice;
+}
+
+// always calculate discount from locked original rate
+const applied = applyStrategy(baseline.originalRate, strategy, date);
 
 const gapLength = gapMap[date];
 let finalMinNights = day._originalMin;
@@ -1192,6 +1228,8 @@ if (
   finalMinNights = gapLength;
 }
 
+baseline.lastPushedRate = applied.newPrice;
+      
 nights.push({
   date,
   price: applied.newPrice,
@@ -1220,6 +1258,8 @@ nights.push({
   );
 }
 
+    saveData();
+    
     res.json({
   success: true,
   updated: nights
