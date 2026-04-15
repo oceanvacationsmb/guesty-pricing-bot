@@ -696,6 +696,54 @@ async function getListingsDataWithTitles(token) {
   return listingsData;
 }
 
+
+function calculateGapMinNights(days) {
+  // days must be sorted by date
+  const result = {};
+
+  let gapStartIndex = null;
+
+  for (let i = 0; i < days.length; i++) {
+    const day = days[i];
+    const status = getDayStatus(day);
+
+    if (status === "AVAILABLE") {
+      if (gapStartIndex === null) {
+        gapStartIndex = i;
+      }
+    } else {
+      // we hit BOOKED or BLOCKED → close gap
+      if (gapStartIndex !== null) {
+        const gapLength = i - gapStartIndex;
+
+        for (let j = gapStartIndex; j < i; j++) {
+          const d = days[j];
+          const date = d.date || d.day || d.calendarDate;
+
+          result[date] = gapLength;
+        }
+
+        gapStartIndex = null;
+      }
+    }
+  }
+
+  // handle gap till end
+  if (gapStartIndex !== null) {
+    const gapLength = days.length - gapStartIndex;
+
+    for (let j = gapStartIndex; j < days.length; j++) {
+      const d = days[j];
+      const date = d.date || d.day || d.calendarDate;
+
+      result[date] = gapLength;
+    }
+  }
+
+  return result;
+}
+
+
 async function getRatesMap(token, startDate, endDate) {
   const calendarData = await guestyGetBatchCalendar(MANAGED_LISTINGS, startDate, endDate, token);
   const ratesMap = {};
