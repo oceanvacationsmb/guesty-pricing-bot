@@ -598,11 +598,15 @@ function pageTemplate(title, activePage, content, extraScripts = "") {
           border-spacing:0;
         }
         .calendar-table th, .calendar-table td {
-          text-align:center;
-          min-width:120px;
-          border-bottom:1px solid var(--line);
-          background:#fff;
-        }
+  text-align:center;
+  min-width:92px;
+  width:92px;
+  max-width:92px;
+  border-bottom:1px solid var(--line);
+  background:#fff;
+  padding:6px 4px;
+  vertical-align:top;
+}
         .calendar-table th:first-child,
         .calendar-table td:first-child {
           text-align:left;
@@ -621,24 +625,54 @@ function pageTemplate(title, activePage, content, extraScripts = "") {
           z-index:25;
         }
         .price-original {
-          font-size:15px;
-          font-weight:800;
-        }
+  font-size:11px;
+  font-weight:800;
+  line-height:1.2;
+}
         .price-new {
-          margin-top:6px;
-          font-size:14px;
-          font-weight:800;
-          color:var(--accent-2);
-        }
+  margin-top:3px;
+  font-size:11px;
+  font-weight:800;
+  line-height:1.2;
+  color:#dc2626;
+}
         .price-rule {
-          margin-top:6px;
-          font-size:11px;
-          color:var(--muted);
-        }
+  margin-top:3px;
+  font-size:10px;
+  color:var(--muted);
+  line-height:1.15;
+}
         .small-text {
-          color:var(--muted);
-          font-size:12px;
-        }
+  color:var(--muted);
+  font-size:10px;
+  line-height:1.15;
+}
+
+.day-box {
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+  align-items:center;
+}
+
+.day-status-booked {
+  color:#dc2626;
+  font-weight:700;
+  font-size:10px;
+}
+
+.day-status-blocked {
+  color:#d97706;
+  font-weight:700;
+  font-size:10px;
+}
+
+.day-status-available {
+  color:#16a34a;
+  font-weight:700;
+  font-size:10px;
+}
+
         .strategy-box {
           background:#f8fbff;
           border:1px solid var(--line);
