@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ocean Vacations Properties</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f7f7f7;
+      color: #222;
+    }
+
+    header {
+      background: #ffffff;
+      padding: 24px 16px;
+      text-align: center;
+      border-bottom: 1px solid #e5e5e5;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 28px;
+    }
+
+    header p {
+      margin: 8px 0 0;
+      color: #666;
+      font-size: 15px;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 24px 16px 40px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+      gap: 24px;
+    }
+
+    .property-card {
+      background: #fff;
+      border-radius: 14px;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+      padding: 18px;
+    }
+
+    .property-title {
+      font-size: 20px;
+      font-weight: bold;
+      margin-bottom: 14px;
+      text-align: center;
+    }
+
+    .embed-wrap {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+      border-radius: 12px;
+      min-height: 320px;
+    }
+
+    .airbnb-embed-frame {
+      width: 100% !important;
+      max-width: 500px;
+      height: 320px !important;
+      margin: 0 auto !important;
+    }
+
+    footer {
+      text-align: center;
+      padding: 20px;
+      color: #777;
+      font-size: 14px;
+    }
+
+    @media (max-width: 520px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      .property-card {
+        padding: 12px;
+      }
+
+      .property-title {
+        font-size: 18px;
+      }
+
+      .airbnb-embed-frame {
+        height: 300px !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Ocean Vacations</h1>
+    <p>Browse our featured Airbnb properties</p>
+  </header>
+
+  <div class="container">
+    <div class="grid">
+
+      <div class="property-card">
+        <div class="property-title">North Myrtle Beach Property</div>
+        <div class="embed-wrap">
+          <div
+            class="airbnb-embed-frame"
+            data-id="1582872951053871107"
+            data-view="home"
+            data-hide-price="true"
+          >
+            <a
+              href="https://www.airbnb.com/rooms/1582872951053871107?guests=1&amp;adults=1&amp;s=66&amp;source=embed_widget"
+              rel="nofollow"
+            >
+              View On Airbnb
+            </a>
+            <a
+              href="https://www.airbnb.com/rooms/1582872951053871107?guests=1&amp;adults=1&amp;s=66&amp;source=embed_widget"
+              rel="nofollow"
+            >
+              Home in North Myrtle Beach · 3 bedrooms · 5 beds · 2 baths
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <div class="property-card">
+        <div class="property-title">Add Second Property Here</div>
+        <div class="embed-wrap">
+          <div
+            class="airbnb-embed-frame"
+            data-id="YOUR_SECOND_ID"
+            data-view="home"
+            data-hide-price="true"
+          >
+            <a
+              href="https://www.airbnb.com/rooms/YOUR_SECOND_ID?guests=1&amp;adults=1&amp;s=66&amp;source=embed_widget"
+              rel="nofollow"
+            >
+              View On Airbnb
+            </a>
+            <a
+              href="https://www.airbnb.com/rooms/YOUR_SECOND_ID?guests=1&amp;adults=1&amp;s=66&amp;source=embed_widget"
+              rel="nofollow"
+            >
+              Your second property description
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <div class="property-card">
+        <div class="property-title">Add Third Property Here</div>
+        <div class="embed-wrap">
+          <div
+            class="airbnb-embed-frame"
+            data-id="YOUR_THIRD_ID"
+            data-view="home"
+            data-hide-price="true"
+          >
+            <a
+              href="https://www.airbnb.com/rooms/YOUR_THIRD_ID?guests=1&amp;adults=1&amp;s=66&amp;source=embed_widget"
+              rel="nofollow"
+            >
+              View On Airbnb
+            </a>
+            <a
+              href="https://www.airbnb.com/rooms/YOUR_THIRD_ID?guests=1&amp;adults=1&amp;s=66&amp;source=embed_widget"
+              rel="nofollow"
+            >
+              Your third property description
+            </a>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <footer>
+    © Ocean Vacations
+  </footer>
+
+  <script async src="https://www.airbnb.com/embeddable/airbnb_jssdk"></script>
+</body>
+</html>
